@@ -521,16 +521,6 @@ seed_trajectory_data <- bind_rows(lapply(
   }
 ))
 
-seed_trajectory_endpoints <- bind_rows(lapply(
-  seq_along(seed_trajectories),
-  function(i) {
-    data.frame(
-      alpha = seed_trajectories[[i]]$theta["alpha"],
-      beta = seed_trajectories[[i]]$theta["beta"],
-      seed = names(seed_trajectories)[i]
-    )
-  }
-))
 
 seed_alpha_range <- range(seed_trajectory_data$alpha, theta_true["alpha"])
 seed_beta_range <- range(seed_trajectory_data$beta, theta_true["beta"])
@@ -572,11 +562,6 @@ sgd_seed_trajectory_plot <- ggplot() +
     alpha = 0.8
   ) +
   geom_point(
-    data = seed_trajectory_endpoints,
-    aes(x = alpha, y = beta, color = seed),
-    size = 2
-  ) +
-  geom_point(
     data = data.frame(
       alpha = theta_ab_start["alpha"],
       beta = theta_ab_start["beta"]
@@ -613,7 +598,161 @@ sgd_seed_trajectory_plot <- ggplot() +
 
 print(sgd_seed_trajectory_plot)
 
+# Compare trajectories from five different starting values using the same
+# random seed and hyperparameters.
+starting_values <- data.frame(
+  alpha = c(1.5, 2.0, 2.0, 3.0, 3.5),
+  beta = c(0.5, 1.0, 2.0, 1.0, 2.0)
+)
+starting_values$start <- paste0(
+  "(", starting_values$alpha, ", ", starting_values$beta, ")"
+)
 
+start_value_trajectories <- lapply(seq_len(nrow(starting_values)), function(i) {
+  sgd_two_parameters(
+    x = x,
+    y = y,
+    theta_ab = c(
+      alpha = starting_values$alpha[i],
+      beta = starting_values$beta[i]
+    ),
+    gamma_fixed = theta_true["gamma"],
+    delta_fixed = theta_true["delta"],
+    theta_ab_true = theta_true[c("alpha", "beta")],
+    lr0 = trajectory_lr0,
+    max_epochs = trajectory_epochs,
+    a = trajectory_a,
+    K = trajectory_K,
+    seed = trajectory_seeds[1]
+  )
+})
+names(start_value_trajectories) <- starting_values$start
+
+start_value_trajectory_data <- bind_rows(lapply(
+  seq_along(start_value_trajectories),
+  function(i) {
+    trajectory <- start_value_trajectories[[i]]$trajectory
+    keep <- unique(round(seq(
+      1,
+      nrow(trajectory),
+      length.out = min(nrow(trajectory), 1500)
+    )))
+    data.frame(
+      alpha = trajectory[keep, 1],
+      beta = trajectory[keep, 2],
+      iteration = keep - 1,
+      start = names(start_value_trajectories)[i]
+    )
+  }
+))
+
+start_value_trajectory_endpoints <- bind_rows(lapply(
+  seq_along(start_value_trajectories),
+  function(i) {
+    final_theta <- start_value_trajectories[[i]]$theta
+    data.frame(
+      alpha = unname(final_theta["alpha"]),
+      beta = unname(final_theta["beta"]),
+      start = names(start_value_trajectories)[i]
+    )
+  }
+))
+
+start_value_alpha_range <- range(
+  start_value_trajectory_data$alpha,
+  theta_true["alpha"]
+)
+start_value_beta_range <- range(
+  start_value_trajectory_data$beta,
+  theta_true["beta"]
+)
+start_value_alpha_padding <- 0.08 * diff(start_value_alpha_range)
+start_value_beta_padding <- 0.08 * diff(start_value_beta_range)
+start_value_alpha_range <- start_value_alpha_range +
+  c(-start_value_alpha_padding, start_value_alpha_padding)
+start_value_beta_range <- start_value_beta_range +
+  c(-start_value_beta_padding, start_value_beta_padding)
+
+start_value_contour_grid <- expand.grid(
+  alpha = seq(
+    start_value_alpha_range[1],
+    start_value_alpha_range[2],
+    length.out = 80
+  ),
+  beta = seq(
+    start_value_beta_range[1],
+    start_value_beta_range[2],
+    length.out = 80
+  )
+)
+start_value_contour_grid$loss <- vapply(
+  seq_len(nrow(start_value_contour_grid)),
+  function(i) {
+    theta_slice <- c(
+      alpha = start_value_contour_grid$alpha[i],
+      beta = start_value_contour_grid$beta[i],
+      gamma = theta_true["gamma"],
+      delta = theta_true["delta"]
+    )
+    full_loss(theta_slice, x, y)
+  },
+  numeric(1)
+)
+
+sgd_start_value_trajectory_plot <- ggplot() +
+  geom_contour(
+    data = start_value_contour_grid,
+    aes(x = alpha, y = beta, z = loss),
+    color = "grey70"
+  ) +
+  geom_path(
+    data = start_value_trajectory_data,
+    aes(x = alpha, y = beta, color = start, group = start),
+    linewidth = 0.7,
+    alpha = 0.8
+  ) +
+  geom_point(
+    data = starting_values,
+    aes(x = alpha, y = beta, color = start),
+    shape = 4,
+    size = 3
+  ) +
+  geom_point(
+    data = start_value_trajectory_endpoints,
+    aes(x = alpha, y = beta, color = start),
+    size = 2
+  ) +
+  geom_point(
+    data = data.frame(
+      alpha = unname(theta_true["alpha"]),
+      beta = unname(theta_true["beta"])
+    ),
+    aes(x = alpha, y = beta),
+    shape = 8,
+    size = 3,
+    color = "black"
+  ) +
+  coord_cartesian(
+    xlim = start_value_alpha_range,
+    ylim = start_value_beta_range
+  ) +
+  labs(
+    title = "Two-parameter SGD trajectories from five starting values",
+    subtitle = paste0(
+      "Same seed and hyperparameters: lr0 = ", trajectory_lr0,
+      ", a = ", trajectory_a,
+      ", K = ", trajectory_K,
+      "; crosses = starts, circles = final points, star = true parameters"
+    ),
+    x = expression(alpha),
+    y = expression(beta),
+    color = "Starting (alpha, beta)"
+  ) +
+  theme_minimal()
+
+print(sgd_start_value_trajectory_plot)
+
+# The starting point 
 
 
 
@@ -1180,6 +1319,4 @@ path_plot <- ggplot() +
   theme_minimal()
 
 print(path_plot)
-
-
 
