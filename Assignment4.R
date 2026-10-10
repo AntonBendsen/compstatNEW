@@ -108,7 +108,7 @@ full_gradient <- function(theta, x, y) {
 # Explore SGD with gamma and delta fixed at their true values.
 sgd_two_parameters <- function(x, y, theta_ab, gamma_fixed, delta_fixed,
                                lr0, max_epochs = 200, a = 1,
-                               K = 10000, theta_ab_true, seed = 1) {
+                               K = 2500, theta_ab_true, seed = 1) {
   set.seed(seed)
   N <- length(y)
   theta <- c(
@@ -122,6 +122,8 @@ sgd_two_parameters <- function(x, y, theta_ab, gamma_fixed, delta_fixed,
   trajectory[1, ] <- theta[1:2]
   parameter_mse <- numeric(max_epochs)
   objective <- numeric(max_epochs)
+  elapsed_time <- numeric(max_epochs)
+  start_time <- proc.time()[["elapsed"]]
   step <- 0
 
   for (epoch in seq_len(max_epochs)) {
@@ -136,12 +138,14 @@ sgd_two_parameters <- function(x, y, theta_ab, gamma_fixed, delta_fixed,
 
     parameter_mse[epoch] <- mean((theta[1:2] - theta_ab_true)^2)
     objective[epoch] <- full_loss(theta, x, y)
+    elapsed_time[epoch] <- proc.time()[["elapsed"]] - start_time
   }
 
   list(
     theta = theta[1:2],
     trajectory = trajectory[seq_len(step + 1), , drop = FALSE],
     parameter_mse = parameter_mse,
+    elapsed_time = elapsed_time,
     objective = objective,
     epochs = max_epochs,
     final_parameter_mse = parameter_mse[max_epochs],
@@ -150,7 +154,7 @@ sgd_two_parameters <- function(x, y, theta_ab, gamma_fixed, delta_fixed,
 }
 
 theta_ab_start <- c(alpha = 2.0, beta = 1.0)
-learning_rates <- c(0.001, 0.01, 0.05)
+learning_rates <- c(0.001, 0.005, 0.01, 0.05)
 
 sgd_experiments <- lapply(learning_rates, function(rate) {
   timing <- system.time(result <- sgd_two_parameters(
@@ -163,7 +167,7 @@ sgd_experiments <- lapply(learning_rates, function(rate) {
     lr0 = rate,
     max_epochs = 200,
     a = 1,
-    K = 10000,
+    K = 2500,
     seed = 1
   ))
   result$runtime_seconds <- unname(timing[["elapsed"]])
@@ -185,6 +189,8 @@ sgd_experiment_summary <- bind_rows(lapply(
   }
 ))
 print(sgd_experiment_summary)
+
+
 
 # Compare the decay parameters while holding the initial learning rate fixed.
 # Each heatmap cell reports the median final parameter MSE across seeds.
@@ -219,7 +225,8 @@ decay_results <- bind_rows(lapply(seq_len(nrow(decay_grid)), function(i) {
     a = decay_grid$a[i],
     K = decay_grid$K[i],
     seed = decay_grid$seed[i],
-    final_parameter_mse = run$final_parameter_mse
+    final_parameter_mse = run$final_parameter_mse,
+    runtime_seconds = tail(run$elapsed_time, 1)
   )
 }))
 
@@ -227,6 +234,7 @@ decay_heatmap_data <- decay_results %>%
   group_by(a, K) %>%
   summarise(
     median_parameter_mse = median(final_parameter_mse),
+    median_runtime_seconds = median(runtime_seconds),
     .groups = "drop"
   )
 
@@ -260,6 +268,74 @@ decay_heatmap <- ggplot(
 
 print(decay_heatmap)
 
+runtime_heatmap <- ggplot(
+  decay_heatmap_data,
+  aes(
+    x = factor(K, levels = K_grid),
+    y = factor(a, levels = rev(a_grid)),
+    fill = median_runtime_seconds
+  )
+) +
+  geom_tile(color = "white") +
+  geom_text(
+    aes(label = formatC(median_runtime_seconds, format = "f", digits = 3)),
+    size = 3
+  ) +
+  scale_fill_gradient(
+    low = "lightyellow",
+    high = "darkred"
+  ) +
+  labs(
+    title = "SGD runtime by decay parameters",
+    subtitle = paste0(
+      "Median over ", length(heatmap_seeds),
+      " seeds; lr0 = ", heatmap_lr0,
+      ", epochs = ", heatmap_epochs
+    ),
+    x = "K",
+    y = "Decay exponent a",
+    fill = "Median runtime (s)"
+  ) +
+  theme_minimal()
+
+print(runtime_heatmap)
+
+# We see that setting a=1 and K=2500 is a good tradeoff between speed and accuracy. We will use these decay parameters in the following experiments.
+
+
+
+
+
+sgd_parameter_mse_time_data <- bind_rows(lapply(
+  seq_along(sgd_experiments),
+  function(i) {
+    result <- sgd_experiments[[i]]
+    data.frame(
+      elapsed_time = result$elapsed_time,
+      parameter_mse = result$parameter_mse,
+      learning_rate = names(sgd_experiments)[i]
+    )
+  }
+)) %>%
+  filter(elapsed_time > 0, parameter_mse > 0)
+
+sgd_parameter_mse_time_plot <- ggplot(
+  sgd_parameter_mse_time_data,
+  aes(x = elapsed_time, y = parameter_mse, color = learning_rate)
+) +
+  geom_line(linewidth = 0.8) +
+  scale_x_log10() +
+  scale_y_log10() +
+  labs(
+    title = "Parameter MSE versus elapsed time",
+    x = "Elapsed time (seconds)",
+    y = "MSE to the true alpha and beta",
+    color = "Learning rate"
+  ) +
+  theme_minimal()
+
+print(sgd_parameter_mse_time_plot)
+
 sgd_path_data <- bind_rows(lapply(
   seq_along(sgd_experiments),
   function(i) {
@@ -278,6 +354,14 @@ sgd_path_data <- bind_rows(lapply(
     )
   }
 ))
+sgd_path_data$learning_rate <- factor(
+  sgd_path_data$learning_rate,
+  levels = names(sgd_experiments)
+)
+sgd_path_endpoints <- sgd_path_data %>%
+  group_by(learning_rate) %>%
+  slice_max(iteration, n = 1, with_ties = FALSE) %>%
+  ungroup()
 
 sgd_alpha_range <- range(sgd_path_data$alpha, theta_true["alpha"])
 sgd_beta_range <- range(sgd_path_data$beta, theta_true["beta"])
@@ -316,10 +400,16 @@ sgd_two_parameter_path_plot <- ggplot() +
     data = sgd_path_data,
     aes(
       x = alpha, y = beta,
-      color = learning_rate, group = learning_rate
+      color = learning_rate,
+      group = learning_rate
     ),
     linewidth = 0.7,
     alpha = 0.85
+  ) +
+  geom_point(
+    data = sgd_path_endpoints,
+    aes(x = alpha, y = beta, color = learning_rate, shape = learning_rate),
+    size = 2.5
   ) +
   geom_point(
     data = data.frame(
@@ -350,7 +440,8 @@ sgd_two_parameter_path_plot <- ggplot() +
     subtitle = "Comparing learning rates; cross = start, star = true parameters",
     x = expression(alpha),
     y = expression(beta),
-    color = "Learning rate"
+    color = "Learning rate",
+    shape = "Final point"
   ) +
   theme_minimal()
 
@@ -386,7 +477,141 @@ print(sgd_parameter_mse_plot)
 
 sgd_experiment_summary
 
+#taking initial learning rate of 0.005 seems to result in the best convergence compared to time and accuracy. We will use this learning rate in the following experiments.
 
+# Compare SGD trajectories across five random seeds with fixed hyperparameters.
+trajectory_seeds <- 1:5
+trajectory_lr0 <- 0.005
+trajectory_a <- 1
+trajectory_K <- 2500
+trajectory_epochs <- 200
+
+seed_trajectories <- lapply(trajectory_seeds, function(seed_value) {
+  sgd_two_parameters(
+    x = x,
+    y = y,
+    theta_ab = theta_ab_start,
+    gamma_fixed = theta_true["gamma"],
+    delta_fixed = theta_true["delta"],
+    theta_ab_true = theta_true[c("alpha", "beta")],
+    lr0 = trajectory_lr0,
+    max_epochs = trajectory_epochs,
+    a = trajectory_a,
+    K = trajectory_K,
+    seed = seed_value
+  )
+})
+names(seed_trajectories) <- paste("Seed", trajectory_seeds)
+
+seed_trajectory_data <- bind_rows(lapply(
+  seq_along(seed_trajectories),
+  function(i) {
+    trajectory <- seed_trajectories[[i]]$trajectory
+    keep <- unique(round(seq(
+      1,
+      nrow(trajectory),
+      length.out = min(nrow(trajectory), 1500)
+    )))
+    data.frame(
+      alpha = trajectory[keep, 1],
+      beta = trajectory[keep, 2],
+      iteration = keep - 1,
+      seed = names(seed_trajectories)[i]
+    )
+  }
+))
+
+seed_trajectory_endpoints <- bind_rows(lapply(
+  seq_along(seed_trajectories),
+  function(i) {
+    data.frame(
+      alpha = seed_trajectories[[i]]$theta["alpha"],
+      beta = seed_trajectories[[i]]$theta["beta"],
+      seed = names(seed_trajectories)[i]
+    )
+  }
+))
+
+seed_alpha_range <- range(seed_trajectory_data$alpha, theta_true["alpha"])
+seed_beta_range <- range(seed_trajectory_data$beta, theta_true["beta"])
+seed_alpha_padding <- 0.08 * diff(seed_alpha_range)
+seed_beta_padding <- 0.08 * diff(seed_beta_range)
+seed_alpha_range <- seed_alpha_range +
+  c(-seed_alpha_padding, seed_alpha_padding)
+seed_beta_range <- seed_beta_range +
+  c(-seed_beta_padding, seed_beta_padding)
+
+seed_contour_grid <- expand.grid(
+  alpha = seq(seed_alpha_range[1], seed_alpha_range[2], length.out = 80),
+  beta = seq(seed_beta_range[1], seed_beta_range[2], length.out = 80)
+)
+seed_contour_grid$loss <- vapply(
+  seq_len(nrow(seed_contour_grid)),
+  function(i) {
+    theta_slice <- c(
+      alpha = seed_contour_grid$alpha[i],
+      beta = seed_contour_grid$beta[i],
+      gamma = theta_true["gamma"],
+      delta = theta_true["delta"]
+    )
+    full_loss(theta_slice, x, y)
+  },
+  numeric(1)
+)
+
+sgd_seed_trajectory_plot <- ggplot() +
+  geom_contour(
+    data = seed_contour_grid,
+    aes(x = alpha, y = beta, z = loss),
+    color = "grey70"
+  ) +
+  geom_path(
+    data = seed_trajectory_data,
+    aes(x = alpha, y = beta, color = seed, group = seed),
+    linewidth = 0.7,
+    alpha = 0.8
+  ) +
+  geom_point(
+    data = seed_trajectory_endpoints,
+    aes(x = alpha, y = beta, color = seed),
+    size = 2
+  ) +
+  geom_point(
+    data = data.frame(
+      alpha = theta_ab_start["alpha"],
+      beta = theta_ab_start["beta"]
+    ),
+    aes(x = alpha, y = beta),
+    shape = 4,
+    size = 3,
+    color = "black"
+  ) +
+  geom_point(
+    data = data.frame(
+      alpha = theta_true["alpha"],
+      beta = theta_true["beta"]
+    ),
+    aes(x = alpha, y = beta),
+    shape = 8,
+    size = 3,
+    color = "black"
+  ) +
+  coord_cartesian(xlim = seed_alpha_range, ylim = seed_beta_range) +
+  labs(
+    title = "Two-parameter SGD trajectories across five seeds",
+    subtitle = paste0(
+      "lr0 = ", trajectory_lr0,
+      ", a = ", trajectory_a,
+      ", K = ", trajectory_K,
+      "; cross = start, star = true parameters"
+    ),
+    x = expression(alpha),
+    y = expression(beta),
+    color = "Random seed"
+  ) +
+  theme_minimal()
+
+print(sgd_seed_trajectory_plot)
 
 
 
@@ -955,12 +1180,6 @@ path_plot <- ggplot() +
   theme_minimal()
 
 print(path_plot)
-
-
-
-
-
-
 
 
 
