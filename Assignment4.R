@@ -51,7 +51,7 @@ y <- dose_response(x, theta_true) +
 # 3. Observation-level loss: 1/2 * residual^2
 loss_i <- function(theta, x, y) {
   residual <- y - dose_response(x, theta)
-  residual^2
+  0.5 * residual^2
 }
 
 
@@ -97,6 +97,47 @@ full_gradient <- function(theta, x, y) {
   }
 
   g / length(y)
+}
+
+hess_i <- function(theta, x, y) {
+  alpha <- theta[1]
+  beta <- theta[2]
+  gamma <- theta[3]
+  delta <- theta[4]
+
+  u <- log(x) - alpha
+  p <- plogis(-beta * u)
+  q <- p * (1 - p)
+  q_prime <- q * (1 - 2 * p)
+  residual <- y - dose_response(x, theta)
+
+  df <- c(
+    (delta - gamma) * beta * q,
+    -(delta - gamma) * u * q,
+    1 - p,
+    p
+  )
+  hess_fit <- matrix(0, nrow = 4, ncol = 4)
+  hess_fit[1, 1] <- (delta - gamma) * q_prime * beta^2
+  hess_fit[1, 2] <- hess_fit[2, 1] <-
+    (delta - gamma) * (q - beta * u * q_prime)
+  hess_fit[2, 2] <- (delta - gamma) * u^2 * q_prime
+  hess_fit[1, 3] <- hess_fit[3, 1] <- -beta * q
+  hess_fit[1, 4] <- hess_fit[4, 1] <- beta * q
+  hess_fit[2, 3] <- hess_fit[3, 2] <- u * q
+  hess_fit[2, 4] <- hess_fit[4, 2] <- -u * q
+
+  tcrossprod(df) - residual * hess_fit
+}
+
+full_hessian <- function(theta, x, y) {
+  hessian <- matrix(0, nrow = 4, ncol = 4)
+
+  for (i in seq_along(y)) {
+    hessian <- hessian + hess_i(theta, x[i], y[i])
+  }
+
+  hessian / length(y)
 }
 
 
@@ -796,8 +837,11 @@ print(sgd_start_value_trajectory_plot)
 
 
 
+
+
 # now comparing to the ordinary gradient decent:
 
+if (FALSE) {
 
 # 6. Gradient Descent
 fn <- function(theta) full_loss(theta, x, y)
@@ -1323,4 +1367,270 @@ path_plot <- ggplot() +
   theme_minimal()
 
 print(path_plot)
+
+}
+
+# Compare gradient descent, damped Newton, and SGD while optimizing only
+# alpha and beta. Gamma and delta stay fixed at their true values.
+theta_ab_start <- c(alpha = 2.0, beta = 1.0)
+theta_ab_true <- theta_true[c("alpha", "beta")]
+gamma_fixed <- theta_true["gamma"]
+delta_fixed <- theta_true["delta"]
+
+expand_theta_ab <- function(theta_ab) {
+  c(
+    alpha = theta_ab[1],
+    beta = theta_ab[2],
+    gamma = gamma_fixed,
+    delta = delta_fixed
+  )
+}
+
+fn_ab <- function(theta_ab) {
+  full_loss(expand_theta_ab(theta_ab), x, y)
+}
+
+gr_ab <- function(theta_ab) {
+  full_gradient(expand_theta_ab(theta_ab), x, y)[1:2]
+}
+
+hess_ab <- function(theta_ab) {
+  full_hessian(expand_theta_ab(theta_ab), x, y)[1:2, 1:2]
+}
+
+gradient_descent_ab <- function(theta_init, tol = 1e-6, max_iter = 1000,
+                                gamma_0 = 1, c = 0.1, d = 0.5) {
+  theta <- theta_init
+  trajectory <- matrix(NA_real_, nrow = max_iter + 1, ncol = 2)
+  trajectory[1, ] <- theta
+  time_history <- numeric(max_iter + 1)
+  gradient_norm_history <- numeric(max_iter)
+  start_time <- proc.time()[["elapsed"]]
+  iterations <- 0
+
+  for (i in seq_len(max_iter)) {
+    gradient <- gr_ab(theta)
+    gradient_norm_sq <- sum(gradient^2)
+    gradient_norm_history[i] <- sqrt(gradient_norm_sq)
+
+    if (sqrt(gradient_norm_sq) <= tol) {
+      break
+    }
+
+    step_size <- gamma_0
+    current_loss <- fn_ab(theta)
+    while (fn_ab(theta - step_size * gradient) >
+           current_loss - c * step_size * gradient_norm_sq) {
+      step_size <- d * step_size
+      if (step_size < 1e-16) {
+        warning("Gradient descent line search failed.")
+        break
+      }
+    }
+
+    theta <- theta - step_size * gradient
+    iterations <- i
+    trajectory[i + 1, ] <- theta
+    time_history[i + 1] <- proc.time()[["elapsed"]] - start_time
+  }
+
+  list(
+    theta = theta,
+    loss = fn_ab(theta),
+    trajectory = trajectory[seq_len(iterations + 1), , drop = FALSE],
+    time_history = time_history[seq_len(iterations + 1)],
+    gradient_norm_history = gradient_norm_history[seq_len(iterations)],
+    gradient_time_history = time_history[seq_len(iterations)]
+  )
+}
+
+damped_newton_ab <- function(theta_init, tol = 1e-6, max_iter = 100,
+                             c = 0.1, d = 0.5) {
+  theta <- theta_init
+  trajectory <- matrix(NA_real_, nrow = max_iter + 1, ncol = 2)
+  trajectory[1, ] <- theta
+  time_history <- numeric(max_iter + 1)
+  gradient_norm_history <- numeric(max_iter)
+  start_time <- proc.time()[["elapsed"]]
+  iterations <- 0
+
+  for (i in seq_len(max_iter)) {
+    gradient <- gr_ab(theta)
+    gradient_norm <- sqrt(sum(gradient^2))
+    gradient_norm_history[i] <- gradient_norm
+
+    if (gradient_norm <= tol) {
+      break
+    }
+
+    direction <- tryCatch(
+      solve(hess_ab(theta), -gradient),
+      error = function(error) -gradient
+    )
+    if (sum(gradient * direction) >= 0) {
+      direction <- -gradient
+    }
+
+    directional_derivative <- sum(gradient * direction)
+    step_size <- 1
+    current_loss <- fn_ab(theta)
+    while (fn_ab(theta + step_size * direction) >
+           current_loss + c * step_size * directional_derivative) {
+      step_size <- d * step_size
+      if (step_size < 1e-16) {
+        warning("Newton line search failed.")
+        break
+      }
+    }
+
+    theta <- theta + step_size * direction
+    iterations <- i
+    trajectory[i + 1, ] <- theta
+    time_history[i + 1] <- proc.time()[["elapsed"]] - start_time
+  }
+
+  list(
+    theta = theta,
+    loss = fn_ab(theta),
+    trajectory = trajectory[seq_len(iterations + 1), , drop = FALSE],
+    time_history = time_history[seq_len(iterations + 1)],
+    gradient_norm_history = gradient_norm_history[seq_len(iterations)],
+    gradient_time_history = time_history[seq_len(iterations)]
+  )
+}
+
+result_gd_ab <- gradient_descent_ab(theta_ab_start)
+result_newton_ab <- damped_newton_ab(theta_ab_start)
+result_sgd_ab <- sgd_two_parameters(
+  x = x,
+  y = y,
+  theta_ab = theta_ab_start,
+  gamma_fixed = gamma_fixed,
+  delta_fixed = delta_fixed,
+  theta_ab_true = theta_ab_true,
+  lr0 = 0.005,
+  max_epochs = 200,
+  a = 1,
+  K = 2500,
+  seed = 1
+)
+
+comparison_summary <- data.frame(
+  method = c("Gradient descent", "Damped Newton", "SGD"),
+  alpha = c(result_gd_ab$theta[1], result_newton_ab$theta[1],
+            result_sgd_ab$theta[1]),
+  beta = c(result_gd_ab$theta[2], result_newton_ab$theta[2],
+           result_sgd_ab$theta[2]),
+  loss = c(result_gd_ab$loss, result_newton_ab$loss,
+           result_sgd_ab$final_loss),
+  parameter_mse = c(
+    mean((result_gd_ab$theta - theta_ab_true)^2),
+    mean((result_newton_ab$theta - theta_ab_true)^2),
+    result_sgd_ab$final_parameter_mse
+  ),
+  elapsed_seconds = c(
+    tail(result_gd_ab$time_history, 1),
+    tail(result_newton_ab$time_history, 1),
+    tail(result_sgd_ab$elapsed_time, 1)
+  )
+)
+print(comparison_summary)
+
+comparison_gradient_data <- bind_rows(
+  data.frame(
+    time = result_gd_ab$gradient_time_history,
+    gradient_norm = result_gd_ab$gradient_norm_history,
+    method = "Gradient descent"
+  ),
+  data.frame(
+    time = result_newton_ab$gradient_time_history,
+    gradient_norm = result_newton_ab$gradient_norm_history,
+    method = "Damped Newton"
+  ),
+  data.frame(
+    time = result_sgd_ab$elapsed_time,
+    gradient_norm = vapply(seq_len(result_sgd_ab$epochs), function(epoch) {
+      sqrt(sum(gr_ab(result_sgd_ab$trajectory[
+        match(epoch * length(y) + 1, seq_len(nrow(result_sgd_ab$trajectory))),
+      ] )^2))
+    }, numeric(1)),
+    method = "SGD"
+  )
+) %>%
+  filter(time > 0, gradient_norm > 0, is.finite(gradient_norm))
+
+comparison_gradient_plot <- ggplot(
+  comparison_gradient_data,
+  aes(x = time, y = gradient_norm, color = method)
+) +
+  geom_line(linewidth = 0.8) +
+  scale_x_log10() +
+  scale_y_log10() +
+  labs(
+    title = "Convergence using alpha and beta",
+    x = "Elapsed time (seconds)",
+    y = "Full-data gradient norm",
+    color = "Method"
+  ) +
+  theme_minimal()
+
+comparison_path_data <- bind_rows(
+  data.frame(result_gd_ab$trajectory, method = "Gradient descent"),
+  data.frame(result_newton_ab$trajectory, method = "Damped Newton"),
+  data.frame(
+    result_sgd_ab$trajectory[unique(round(seq(
+      1, nrow(result_sgd_ab$trajectory),
+      length.out = min(1500, nrow(result_sgd_ab$trajectory))
+    ))), , drop = FALSE],
+    method = "SGD"
+  )
+)
+names(comparison_path_data)[1:2] <- c("alpha", "beta")
+
+comparison_contour <- expand.grid(
+  alpha = seq(min(comparison_path_data$alpha),
+              max(comparison_path_data$alpha), length.out = 80),
+  beta = seq(min(comparison_path_data$beta),
+             max(comparison_path_data$beta), length.out = 80)
+)
+comparison_contour$loss <- vapply(seq_len(nrow(comparison_contour)), function(i) {
+  fn_ab(c(comparison_contour$alpha[i], comparison_contour$beta[i]))
+}, numeric(1))
+
+comparison_path_plot <- ggplot() +
+  geom_contour(
+    data = comparison_contour,
+    aes(x = alpha, y = beta, z = loss),
+    color = "grey70"
+  ) +
+  geom_path(
+    data = comparison_path_data,
+    aes(x = alpha, y = beta, color = method, group = method),
+    linewidth = 0.8
+  ) +
+  geom_point(
+    data = data.frame(alpha = theta_ab_start[1], beta = theta_ab_start[2]),
+    aes(x = alpha, y = beta),
+    shape = 4,
+    size = 3,
+    color = "black"
+  ) +
+  geom_point(
+    data = data.frame(alpha = theta_ab_true[1], beta = theta_ab_true[2]),
+    aes(x = alpha, y = beta),
+    shape = 8,
+    size = 3,
+    color = "black"
+  ) +
+  labs(
+    title = "Optimization paths in the alpha-beta plane",
+    subtitle = "Gamma and delta are fixed at their true values",
+    x = expression(alpha),
+    y = expression(beta),
+    color = "Method"
+  ) +
+  theme_minimal()
+
+print(comparison_gradient_plot)
+print(comparison_path_plot)
 
