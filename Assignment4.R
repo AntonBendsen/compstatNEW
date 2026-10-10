@@ -8,168 +8,6 @@ test
 
 
 
-theta_true <- c(alpha = 2.5, beta = 1.4,
-                gamma = 0.5, delta = 4)
-
-# Log-logistisk model
-f <- function(x, theta) {
-  alpha <- theta[1]
-  beta  <- theta[2]
-  gamma <- theta[3]
-  delta <- theta[4]
-
-  p <- plogis(-beta * (log(x) - alpha))
-  gamma + (delta - gamma) * p
-}
-
-# Simulér data på et grid
-set.seed(123)
-
-N <- 2000
-sigma <- 0.25
-
-log_grid <- seq(1, 5, length.out = 15) ## 15 different doses
-x <- exp(sample(log_grid, N, replace = TRUE))
-
-y <- f(x, theta_true) + rnorm(N, sd = sigma)
-
-dat <- data.frame(x = x, y = y)
-
-# Tabsfunktion: mean squared error
-loss <- function(theta, x, y) {
-  mean((y - f(x, theta))^2)
-}
-
-loss(theta_true, x, y)
-
-
-#Calculate the gradient of the loss function
-
-# Beregn modelværdier og Jacobimatrix
-model_jacobian <- function(x, theta) {
-  alpha <- theta[1]
-  beta  <- theta[2]
-  gamma <- theta[3]
-  delta <- theta[4]
-
-  lx <- log(x)
-  p <- plogis(-beta * (lx - alpha))
-  q <- p * (1 - p)
-
-  fit <- gamma + (delta - gamma) * p
-
-  J <- cbind(
-    alpha = (delta - gamma) * beta * q,
-    beta  = -(delta - gamma) * (lx - alpha) * q,
-    gamma = 1 - p,
-    delta = p
-  ) #analytic Jacobian maybe compare to the numerical one.
-
-  list(fit = fit, J = J)
-}
-
-# Gradient af den gennemsnitlige kvadrerede fejl
-grad_loss <- function(theta, x, y) {
-  obj <- model_jacobian(x, theta)
-  residual <- y - obj$fit
-
-  as.vector(-2 * crossprod(obj$J, residual) / length(y))
-}
-
-
-
-sgd <- function(x, y, theta, lr = 0.01,
-                epochs = 100, decay = 0.01) {
-  n <- length(y)
-  history <- numeric(epochs)
-
-  for (epoch in seq_len(epochs)) {
-    idx <- sample.int(n, size = n, replace = TRUE)
-
-    for (i in idx) {
-      g <- grad_loss(theta, x[i], y[i])
-      eta <- lr / (1 + decay * (epoch - 1))
-      theta <- theta - eta * g
-    }
-
-    history[epoch] <- loss(theta, x, y)
-  }
-
-  list(theta = theta, loss = loss(theta, x, y),
-       history = history)
-}
-
-mini_batch_sgd <- function(x, y, theta, lr = 0.01,
-                           batch_size = 32,
-                           epochs = 100, decay = 0.01) {
-  n <- length(y)
-  history <- numeric(epochs)
-
-  for (epoch in seq_len(epochs)) {
-    idx <- sample.int(n)
-    batches <- split(idx, ceiling(seq_along(idx) / batch_size))
-
-    for (batch in batches) {
-      g <- grad_loss(theta, x[batch], y[batch])
-      eta <- lr / (1 + decay * (epoch - 1))
-      theta <- theta - eta * g
-    }
-
-    history[epoch] <- loss(theta, x, y)
-  }
-
-  list(theta = theta, loss = loss(theta, x, y),
-       history = history)
-}
-
-# Test SGD
-# At a fixed parameter, the average single-observation gradient equals
-# the gradient of the full empirical loss.
-theta_test <- c(alpha = 2.2, beta = 1.2, gamma = 0.6, delta = 3.8)
-individual_gradients <- vapply(
-  seq_len(N),
-  function(i) grad_loss(theta_test, x[i], y[i]),
-  numeric(length(theta_test))
-)
-average_individual_gradient <- rowMeans(individual_gradients)
-full_gradient <- grad_loss(theta_test, x, y)
-
-stopifnot(isTRUE(all.equal(
-  unname(average_individual_gradient),
-  unname(full_gradient),
-  tolerance = 1e-10
-)))
-
-# Check that SGD runs and reduces the empirical loss.
-set.seed(456)
-initial_loss <- loss(theta_test, x, y)
-sgd_test <- sgd(x, y, theta_test, lr = 0.001, epochs = 30)
-
-stopifnot(
-  length(sgd_test$theta) == length(theta_test),
-  all(is.finite(sgd_test$theta)),
-  length(sgd_test$history) == 30,
-  sgd_test$loss < initial_loss
-)
-
-cat("SGD test passed. Initial loss:", initial_loss,
-    "Final loss:", sgd_test$loss, "\n")
-
-
-
-
-
-
-
-
-#NEW: 
-
-
-# ============================================================
-# B: Log-Logistic Dose-Response Curves
-# Computational Statistics
-# ============================================================
-
 # 1. Model
 dose_response <- function(x, theta) {
   alpha <- theta[1]
@@ -219,7 +57,7 @@ grad_i <- function(theta, x, y) {
   delta <- theta[4]
 
   lx <- log(x)
-  p <- plogis(-beta * (lx - alpha))
+  p <- plogis(-beta * (lx - alpha)) # as plogis is the logistic function so plogis(z) = 1 / (1 + exp(-z))
   q <- p * (1 - p)
 
   fit <- gamma + (delta - gamma) * p
@@ -236,7 +74,7 @@ grad_i <- function(theta, x, y) {
 }
 
 
-# 5. Full empirical loss and gradient
+# 5. Full empirical loss and gradient (for all observations)
 full_loss <- function(theta, x, y) {
   mean(vapply(
     seq_along(y),
@@ -257,37 +95,62 @@ full_gradient <- function(theta, x, y) {
 
 
 # 6. Gradient Descent
-gd <- function(x, y, theta, lr = 0.001,
-               max_epochs = 200, tol = 1e-8) {
-  N <- length(y)
-  history <- numeric(max_epochs)
+fn <- function(theta) full_loss(theta, x, y)
+gr <- function(theta) full_gradient(theta, x, y)
 
-  for (epoch in seq_len(max_epochs)) {
-    old_theta <- theta
 
-    g <- full_gradient(theta, x, y)
-    theta <- theta - lr * g
+gradient_descent <- function(theta_init, fn, gr, tol = 1e-8, max_iter = 1000,
+                             gamma_0 = 1.0, c = 0.1, d = 0.5) {
+  theta <- theta_init
+  gamma <- gamma_0
+  history <- numeric(max_iter + 1)
+  history[1] <- fn(theta)
+  trajectory <- matrix(NA_real_, nrow = max_iter + 1, ncol = length(theta))
+  trajectory[1, ] <- theta
+  time_history <- numeric(max_iter + 1)
+  start_time <- proc.time()[["elapsed"]]
+  iterations <- 0
 
-    history[epoch] <- full_loss(theta, x, y)
+  for (i in seq_len(max_iter)) {
+    grad <- gr(theta)
+    grad_norm_sq <- sum(grad^2)
 
-    if (any(!is.finite(theta))) {
-      stop("GD diverged. Try a smaller learning rate.")
-    }
-
-    if (sqrt(sum((theta - old_theta)^2)) <
-        tol * (1 + sqrt(sum(old_theta^2)))) {
-      history <- history[seq_len(epoch)]
+    if (sqrt(grad_norm_sq) <= tol) {
+      message("Converged successfully after ", i, " iterations.")
       break
     }
+
+    gamma <- gamma_0
+    f_curr <- fn(theta)
+
+    while (fn(theta - gamma * grad) > f_curr - c * gamma * grad_norm_sq) {
+      gamma <- d * gamma
+
+      if (gamma < 1e-16) {
+        warning("Line search failed to find a sufficient decrease step.")
+        break
+      }
+    }
+
+    theta <- theta - gamma * grad
+    iterations <- i
+    history[i + 1] <- fn(theta)
+    trajectory[i + 1, ] <- theta
+    time_history[i + 1] <- proc.time()[["elapsed"]] - start_time
+  }
+
+  if (iterations == max_iter) {
+    warning("Maximum number of iterations reached without full convergence.")
   }
 
   list(
     theta = theta,
-    loss = full_loss(theta, x, y),
-    history = history
+    gamma = gamma,
+    history = history[seq_len(iterations + 1)],
+    trajectory = trajectory[seq_len(iterations + 1), , drop = FALSE],
+    time_history = time_history[seq_len(iterations + 1)]
   )
 }
-
 
 # 7. Stochastic Gradient Descent
 sgd <- function(x, y, theta, lr0 = 0.001,
@@ -297,6 +160,14 @@ sgd <- function(x, y, theta, lr0 = 0.001,
   N <- length(y)
   history <- numeric(max_epochs)
   step <- 0
+  trajectory <- matrix(
+    NA_real_,
+    nrow = max_epochs * N + 1,
+    ncol = length(theta)
+  )
+  trajectory[1, ] <- theta
+  time_history <- numeric(max_epochs * N + 1)
+  start_time <- proc.time()[["elapsed"]]
 
   for (epoch in seq_len(max_epochs)) {
     # N random draws WITH replacement per epoch
@@ -313,6 +184,9 @@ sgd <- function(x, y, theta, lr0 = 0.001,
       if (any(!is.finite(theta))) {
         stop("SGD diverged. Try a smaller lr0.")
       }
+
+      trajectory[step + 1, ] <- theta
+      time_history[step + 1] <- proc.time()[["elapsed"]] - start_time
     }
 
     history[epoch] <- full_loss(theta, x, y)
@@ -321,7 +195,9 @@ sgd <- function(x, y, theta, lr0 = 0.001,
   list(
     theta = theta,
     loss = full_loss(theta, x, y),
-    history = history
+    history = history,
+    trajectory = trajectory[seq_len(step + 1), , drop = FALSE],
+    time_history = time_history[seq_len(step + 1)]
   )
 }
 
@@ -334,6 +210,11 @@ mini_batch_sgd <- function(x, y, theta, batch_size = 32,
   N <- length(y)
   history <- numeric(max_epochs)
   step <- 0
+  max_steps <- max_epochs * ceiling(N / batch_size)
+  trajectory <- matrix(NA_real_, nrow = max_steps + 1, ncol = length(theta))
+  trajectory[1, ] <- theta
+  time_history <- numeric(max_steps + 1)
+  start_time <- proc.time()[["elapsed"]]
 
   for (epoch in seq_len(max_epochs)) {
     # Shuffle: every observation used once per epoch
@@ -358,6 +239,9 @@ mini_batch_sgd <- function(x, y, theta, batch_size = 32,
       if (any(!is.finite(theta))) {
         stop("Mini-batch SGD diverged. Try a smaller lr0.")
       }
+
+      trajectory[step + 1, ] <- theta
+      time_history[step + 1] <- proc.time()[["elapsed"]] - start_time
     }
 
     history[epoch] <- full_loss(theta, x, y)
@@ -366,13 +250,11 @@ mini_batch_sgd <- function(x, y, theta, batch_size = 32,
   list(
     theta = theta,
     loss = full_loss(theta, x, y),
-    history = history
+    history = history,
+    trajectory = trajectory[seq_len(step + 1), , drop = FALSE],
+    time_history = time_history[seq_len(step + 1)]
   )
 }
-
-
-
-
 
 
 
@@ -386,10 +268,10 @@ theta_start <- c(
 )
 
 # Gradient descent
-result_gd <- gd(
-  x, y, theta_start,
-  lr = 0.001,
-  max_epochs = 200
+result_gd <- gradient_descent(
+  theta_init = theta_start,
+  fn = fn,
+  gr = gr
 )
 
 # SGD
@@ -422,3 +304,59 @@ results <- rbind(
 )
 
 print(round(results, 4))
+
+# Compare Euclidean parameter distance to the true parameters.
+distance_history <- function(result, method) {
+  data.frame(
+    iteration = seq_len(nrow(result$trajectory) - 1),
+    time = result$time_history[-1],
+    distance = sqrt(rowSums(
+      (result$trajectory[-1, , drop = FALSE] -
+         matrix(theta_true, nrow = nrow(result$trajectory) - 1,
+                ncol = length(theta_true), byrow = TRUE))^2
+    )),
+    method = method
+  )
+}
+
+distance_data <- rbind(
+  distance_history(result_gd, "GD"),
+  distance_history(result_sgd, "SGD"),
+  distance_history(result_mb, "Mini-batch SGD")
+)
+distance_data <- distance_data[
+  distance_data$distance > 0,
+]
+
+distance_by_iteration_plot <- ggplot(
+  distance_data,
+  aes(x = iteration, y = distance, color = method)
+) +
+  geom_line(linewidth = 0.8) +
+  scale_x_log10() +
+  scale_y_log10() +
+  labs(
+    title = "Parameter distance to truth by iteration",
+    x = "Iteration (parameter update)",
+    y = "Euclidean distance to true parameters",
+    color = "Method"
+  ) +
+  theme_minimal()
+
+distance_by_time_plot <- ggplot(
+  distance_data[distance_data$time > 0, ],
+  aes(x = time, y = distance, color = method)
+) +
+  geom_line(linewidth = 0.8) +
+  scale_x_log10() +
+  scale_y_log10() +
+  labs(
+    title = "Parameter distance to truth over elapsed time",
+    x = "Elapsed time (seconds)",
+    y = "Euclidean distance to true parameters",
+    color = "Method"
+  ) +
+  theme_minimal()
+
+print(distance_by_iteration_plot)
+print(distance_by_time_plot)
