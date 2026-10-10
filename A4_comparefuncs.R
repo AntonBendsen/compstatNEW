@@ -1,5 +1,5 @@
 
-gradient_descent <- function(theta_init, fn, gr, tol = 1e-4, max_iter = 1000, 
+gradient_descent <- function(theta_init, fn, gr, tol = 1e-3, max_iter = 1000, 
                              gamma_0 = 1.0, c = 0.1, d = 0.5, cb = NULL) {
   theta <- theta_init
 
@@ -35,7 +35,7 @@ gradient_descent <- function(theta_init, fn, gr, tol = 1e-4, max_iter = 1000,
   return(list(theta = theta, gamma = gamma))
 }
 
-damped_newton <- function(theta_init, fn, gr, hess, tol = 1e-4, max_iter = 100, 
+damped_newton <- function(theta_init, fn, gr, hess, tol = 1e-3, max_iter = 100, 
                           c = 0.1, d = 0.5, cb = NULL) {
   theta <- theta_init
 
@@ -81,6 +81,37 @@ damped_newton <- function(theta_init, fn, gr, hess, tol = 1e-4, max_iter = 100,
   return(list(theta = theta, gamma = gamma))
 }
 
+stochastic_gradient_descent <- function(theta_init, x, y, batch_size = 200,
+                                         learning_rate = 0.5, max_epochs = 1000,
+                                         cb = NULL) {
+  theta <- theta_init
+  n <- length(y)
+
+  for (epoch in seq_len(max_epochs)) {
+    shuffled_indices <- sample.int(n)
+
+    for (start in seq.int(1, n, by = batch_size)) {
+      batch_indices <- shuffled_indices[
+        start:min(start + batch_size - 1L, n)
+      ]
+      batch_grad <- numeric(length(theta))
+
+      for (i in batch_indices) {
+        batch_grad <- batch_grad + grad_i(theta, x[i], y[i])
+      }
+      batch_grad <- batch_grad / length(batch_indices)
+
+      theta <- theta - learning_rate * batch_grad
+    }
+
+    if (!is.null(cb)) {
+      cb()
+    }
+  }
+
+  list(theta = theta, epochs = max_epochs)
+}
+
 dose_response <- function(x, theta) {
   alpha <- theta[1]
   beta  <- theta[2]
@@ -101,7 +132,7 @@ theta_true <- c(
   delta = 4.0
 )
 
-N <- 2000
+N <- 5000
 sigma <- 0.25
 
 # 15 grid points on the log-dose scale
@@ -214,16 +245,27 @@ gd_tracer <- tracer(c("theta", "grad_norm"), Delta = 0)
 gradient_descent(c(2.2, 1.7, 0.3, 4.7), fn, gr, cb = gd_tracer$tracer)
 dn_tracer <- tracer(c("theta", "grad_norm"), Delta = 0)
 damped_newton(c(2.2, 1.7, 0.3, 4.7), fn, gr, hess, cb = dn_tracer$tracer)
+sgd_tracer <- tracer(c("theta"), Delta = 0)
+stochastic_gradient_descent(c(2.2, 1.7, 0.3, 4.7), x, y, cb = sgd_tracer$tracer)
 
 gd_summary <- summary(gd_tracer)
 dn_summary <- summary(dn_tracer)
 
+library(tidyverse)
+sgd_summary <- summary(sgd_tracer) %>%
+  rowwise() %>%
+  mutate(grad_norm = sqrt(sum(gr(c(theta.1, theta.2, theta.3, theta.4))^2))) %>%
+  ungroup()
+
 library(ggplot2)
 
-plot_convergence <- function(gd_summary, dn_summary) {
+head(sgd_summary)
+
+plot_convergence <- function(gd_summary, dn_summary, sgd_summary) {
   plot_data <- rbind(
     transform(gd_summary, algorithm = "Gradient descent"),
-    transform(dn_summary, algorithm = "Damped Newton")
+    transform(dn_summary, algorithm = "Damped Newton"),
+    transform(sgd_summary, algorithm = "Stochastic gradient descent")
   )
 
   ggplot(
@@ -235,7 +277,8 @@ plot_convergence <- function(gd_summary, dn_summary) {
     scale_y_log10() +
     scale_color_manual(values = c(
       "Gradient descent" = "steelblue",
-      "Damped Newton" = "firebrick"
+      "Damped Newton" = "firebrick",
+      "Stochastic gradient descent" = "darkgreen"
     )) +
     labs(
       x = "Time",
@@ -245,4 +288,4 @@ plot_convergence <- function(gd_summary, dn_summary) {
     theme_minimal()
 }
 
-plot_convergence(gd_summary, dn_summary)
+plot_convergence(gd_summary, dn_summary, sgd_summary)
