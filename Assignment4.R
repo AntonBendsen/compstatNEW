@@ -43,4 +43,4 @@ loss <- function(theta, x, y) {
 loss(theta_true, x, y)
 
 
-
+runif(67)
