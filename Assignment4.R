@@ -623,3 +623,223 @@ print(path_plot)
 
 
 
+
+# Explore SGD with gamma and delta fixed at their true values.
+sgd_two_parameters <- function(x, y, theta_ab, gamma_fixed, delta_fixed,
+                               lr0, max_epochs = 200, a = 0.6,
+                               K = 10000, tol = 1e-4, seed = 1) {
+  set.seed(seed)
+  N <- length(y)
+  theta <- c(
+    alpha = theta_ab[1],
+    beta = theta_ab[2],
+    gamma = gamma_fixed,
+    delta = delta_fixed
+  )
+  max_steps <- max_epochs * N
+  trajectory <- matrix(NA_real_, nrow = max_steps + 1, ncol = 2)
+  trajectory[1, ] <- theta[1:2]
+  gradient_norm <- numeric(max_epochs)
+  objective <- numeric(max_epochs)
+  step <- 0
+  epochs_run <- 0
+  converged <- FALSE
+
+  for (epoch in seq_len(max_epochs)) {
+    for (j in seq_len(N)) {
+      index <- sample.int(N, 1)
+      step <- step + 1
+      learning_rate <- lr0 / (1 + step / K)^a
+      gradient <- grad_i(theta, x[index], y[index])[1:2]
+      theta[1:2] <- theta[1:2] - learning_rate * gradient
+      trajectory[step + 1, ] <- theta[1:2]
+    }
+
+    gradient_norm[epoch] <- sqrt(sum(full_gradient(theta, x, y)[1:2]^2))
+    objective[epoch] <- full_loss(theta, x, y)
+    epochs_run <- epoch
+
+    if (gradient_norm[epoch] < tol) {
+      converged <- TRUE
+      break
+    }
+  }
+
+  if (!converged) {
+    warning(
+      "Two-parameter SGD did not reach the gradient-norm tolerance ",
+      "before max_epochs for lr0 = ", lr0, "."
+    )
+  }
+
+  list(
+    theta = theta[1:2],
+    trajectory = trajectory[seq_len(step + 1), , drop = FALSE],
+    gradient_norm = gradient_norm[seq_len(epochs_run)],
+    objective = objective[seq_len(epochs_run)],
+    epochs = epochs_run,
+    converged = converged,
+    final_gradient_norm = gradient_norm[epochs_run],
+    final_loss = objective[epochs_run]
+  )
+}
+
+theta_ab_start <- c(alpha = 2.0, beta = 1.0)
+learning_rates <- c(0.001, 0.01, 0.05)
+
+sgd_experiments <- lapply(learning_rates, function(rate) {
+  sgd_two_parameters(
+    x = x,
+    y = y,
+    theta_ab = theta_ab_start,
+    gamma_fixed = theta_true["gamma"],
+    delta_fixed = theta_true["delta"],
+    lr0 = rate,
+    max_epochs = 200,
+    a = 0.6,
+    K = 10000,
+    tol = 1e-4,
+    seed = 1
+  )
+})
+names(sgd_experiments) <- paste0("lr0 = ", learning_rates)
+
+sgd_experiment_summary <- bind_rows(lapply(
+  seq_along(sgd_experiments),
+  function(i) {
+    result <- sgd_experiments[[i]]
+    data.frame(
+      learning_rate = learning_rates[i],
+      epochs = result$epochs,
+      final_loss = result$final_loss,
+      final_gradient_norm = result$final_gradient_norm,
+      converged = result$converged
+    )
+  }
+))
+print(sgd_experiment_summary)
+
+sgd_path_data <- bind_rows(lapply(
+  seq_along(sgd_experiments),
+  function(i) {
+    result <- sgd_experiments[[i]]
+    trajectory <- result$trajectory
+    keep <- unique(round(seq(
+      1,
+      nrow(trajectory),
+      length.out = min(nrow(trajectory), 1500)
+    )))
+    data.frame(
+      alpha = trajectory[keep, 1],
+      beta = trajectory[keep, 2],
+      iteration = keep - 1,
+      learning_rate = names(sgd_experiments)[i]
+    )
+  }
+))
+
+sgd_alpha_range <- range(sgd_path_data$alpha, theta_true["alpha"])
+sgd_beta_range <- range(sgd_path_data$beta, theta_true["beta"])
+sgd_alpha_padding <- 0.08 * diff(sgd_alpha_range)
+sgd_beta_padding <- 0.08 * diff(sgd_beta_range)
+sgd_alpha_range <- sgd_alpha_range +
+  c(-sgd_alpha_padding, sgd_alpha_padding)
+sgd_beta_range <- sgd_beta_range +
+  c(-sgd_beta_padding, sgd_beta_padding)
+
+sgd_contour_grid <- expand.grid(
+  alpha = seq(sgd_alpha_range[1], sgd_alpha_range[2], length.out = 80),
+  beta = seq(sgd_beta_range[1], sgd_beta_range[2], length.out = 80)
+)
+sgd_contour_grid$loss <- vapply(
+  seq_len(nrow(sgd_contour_grid)),
+  function(i) {
+    theta_slice <- c(
+      alpha = sgd_contour_grid$alpha[i],
+      beta = sgd_contour_grid$beta[i],
+      gamma = theta_true["gamma"],
+      delta = theta_true["delta"]
+    )
+    full_loss(theta_slice, x, y)
+  },
+  numeric(1)
+)
+
+sgd_two_parameter_path_plot <- ggplot() +
+  geom_contour(
+    data = sgd_contour_grid,
+    aes(x = alpha, y = beta, z = loss),
+    color = "grey70"
+  ) +
+  geom_path(
+    data = sgd_path_data,
+    aes(
+      x = alpha, y = beta,
+      color = learning_rate, group = learning_rate
+    ),
+    linewidth = 0.7,
+    alpha = 0.85
+  ) +
+  geom_point(
+    data = data.frame(
+      alpha = theta_ab_start[1],
+      beta = theta_ab_start[2]
+    ),
+    aes(x = alpha, y = beta),
+    shape = 4,
+    size = 3,
+    color = "black"
+  ) +
+  geom_point(
+    data = data.frame(
+      alpha = theta_true["alpha"],
+      beta = theta_true["beta"]
+    ),
+    aes(x = alpha, y = beta),
+    shape = 8,
+    size = 3,
+    color = "black"
+  ) +
+  coord_cartesian(
+    xlim = sgd_alpha_range,
+    ylim = sgd_beta_range
+  ) +
+  labs(
+    title = "SGD paths with gamma and delta fixed",
+    subtitle = "Comparing learning rates; cross = start, star = true parameters",
+    x = expression(alpha),
+    y = expression(beta),
+    color = "Learning rate"
+  ) +
+  theme_minimal()
+
+sgd_gradient_norm_data <- bind_rows(lapply(
+  seq_along(sgd_experiments),
+  function(i) {
+    data.frame(
+      epoch = seq_along(sgd_experiments[[i]]$gradient_norm),
+      gradient_norm = sgd_experiments[[i]]$gradient_norm,
+      learning_rate = names(sgd_experiments)[i]
+    )
+  }
+))
+
+sgd_gradient_norm_plot <- ggplot(
+  sgd_gradient_norm_data,
+  aes(x = epoch, y = gradient_norm, color = learning_rate)
+) +
+  geom_hline(yintercept = 1e-4, linetype = "dashed", color = "grey40") +
+  geom_line(linewidth = 0.8) +
+  scale_y_log10() +
+  labs(
+    title = "Full two-parameter gradient norm during SGD",
+    x = "Epoch",
+    y = "Gradient norm",
+    color = "Learning rate"
+  ) +
+  theme_minimal()
+
+print(sgd_two_parameter_path_plot)
+print(sgd_gradient_norm_plot)
+
+
