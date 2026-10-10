@@ -752,7 +752,9 @@ sgd_start_value_trajectory_plot <- ggplot() +
 
 print(sgd_start_value_trajectory_plot)
 
-# The starting point 
+# The starting point does not seem to change when selecting different starting points in the SGD.
+# this indicates that the optimization landscape is well-behaved and that the algorithm is robust to different initializations.
+# also that we have not been stuck in a local minimum, as all starting points converge to the same final point, which we here know is the global minimum because we know the true parameters.
 
 
 
@@ -792,7 +794,7 @@ print(sgd_start_value_trajectory_plot)
 
 
 
-
+# now comparing to the ordinary gradient decent:
 
 
 # 6. Gradient Descent
