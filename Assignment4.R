@@ -1,4 +1,6 @@
 library(tidyverse)
+library(dplyr)
+library(CSwR)
 
 rnorm(100)
 
@@ -31,7 +33,7 @@ theta_true <- c(
   delta = 4.0
 )
 
-N <- 2000
+N <- 200
 sigma <- 0.25
 
 # 15 grid points on the log-dose scale
@@ -45,7 +47,7 @@ y <- dose_response(x, theta_true) +
 # 3. Observation-level loss: 1/2 * residual^2
 loss_i <- function(theta, x, y) {
   residual <- y - dose_response(x, theta)
-  0.5 * residual^2
+  residual^2
 }
 
 
@@ -100,7 +102,8 @@ gr <- function(theta) full_gradient(theta, x, y)
 
 
 gradient_descent <- function(theta_init, fn, gr, tol = 1e-8, max_iter = 1000,
-                             gamma_0 = 1.0, c = 0.1, d = 0.5) {
+                             gamma_0 = 1.0, c = 0.1, d = 0.5,
+                             cb = NULL) {
   theta <- theta_init
   gamma <- gamma_0
   history <- numeric(max_iter + 1)
@@ -109,11 +112,22 @@ gradient_descent <- function(theta_init, fn, gr, tol = 1e-8, max_iter = 1000,
   trajectory[1, ] <- theta
   time_history <- numeric(max_iter + 1)
   start_time <- proc.time()[["elapsed"]]
+  gradient_norm_history <- numeric(0)
+  gradient_time_history <- numeric(0)
   iterations <- 0
 
   for (i in seq_len(max_iter)) {
     grad <- gr(theta)
     grad_norm_sq <- sum(grad^2)
+    gradient_norm_history <- c(gradient_norm_history, sqrt(grad_norm_sq))
+    gradient_time_history <- c(
+      gradient_time_history,
+      proc.time()[["elapsed"]] - start_time
+    )
+
+    if (!is.null(cb)) {
+      cb()
+    }
 
     if (sqrt(grad_norm_sq) <= tol) {
       message("Converged successfully after ", i, " iterations.")
@@ -148,14 +162,17 @@ gradient_descent <- function(theta_init, fn, gr, tol = 1e-8, max_iter = 1000,
     gamma = gamma,
     history = history[seq_len(iterations + 1)],
     trajectory = trajectory[seq_len(iterations + 1), , drop = FALSE],
-    time_history = time_history[seq_len(iterations + 1)]
+    time_history = time_history[seq_len(iterations + 1)],
+    gradient_norm_history = gradient_norm_history,
+    gradient_time_history = gradient_time_history
   )
 }
+
 
 # 7. Stochastic Gradient Descent
 sgd <- function(x, y, theta, lr0 = 0.001,
                 max_epochs = 200, a = 0.6, K = 100,
-                seed = 1) {
+                tol = 1e-4, seed = 1, cb = NULL) {
   set.seed(seed)
   N <- length(y)
   history <- numeric(max_epochs)
@@ -168,6 +185,13 @@ sgd <- function(x, y, theta, lr0 = 0.001,
   trajectory[1, ] <- theta
   time_history <- numeric(max_epochs * N + 1)
   start_time <- proc.time()[["elapsed"]]
+  gradient_norm_history <- numeric(max_epochs * N)
+  gradient_time_history <- numeric(max_epochs * N)
+  convergence_gradient_history <- numeric(max_epochs)
+  convergence_time_history <- numeric(max_epochs)
+  epochs_run <- 0
+  converged <- FALSE
+  full_gradient_norm <- Inf
 
   for (epoch in seq_len(max_epochs)) {
     # N random draws WITH replacement per epoch
@@ -179,6 +203,14 @@ sgd <- function(x, y, theta, lr0 = 0.001,
       lr <- lr0 / (1 + step / K)^a
 
       g <- grad_i(theta, x[i], y[i])
+      grad_norm_sq <- sum(g^2)
+      gradient_norm_history[step] <- sqrt(grad_norm_sq)
+
+      if (!is.null(cb)) {
+        cb()
+      }
+      gradient_time_history[step] <- proc.time()[["elapsed"]] - start_time
+
       theta <- theta - lr * g
 
       if (any(!is.finite(theta))) {
@@ -190,14 +222,37 @@ sgd <- function(x, y, theta, lr0 = 0.001,
     }
 
     history[epoch] <- full_loss(theta, x, y)
+    epochs_run <- epoch
+    full_gradient_norm <- sqrt(sum(full_gradient(theta, x, y)^2))
+    convergence_gradient_history[epoch] <- full_gradient_norm
+    convergence_time_history[epoch] <- proc.time()[["elapsed"]] - start_time
+
+    if (full_gradient_norm < tol) {
+      converged <- TRUE
+      break
+    }
+  }
+
+  if (!converged) {
+    warning(
+      "SGD did not reach the gradient-norm tolerance before max_epochs."
+    )
   }
 
   list(
     theta = theta,
     loss = full_loss(theta, x, y),
-    history = history,
+    history = history[seq_len(epochs_run)],
     trajectory = trajectory[seq_len(step + 1), , drop = FALSE],
-    time_history = time_history[seq_len(step + 1)]
+    time_history = time_history[seq_len(step + 1)],
+    gradient_norm_history = gradient_norm_history[seq_len(step)],
+    gradient_time_history = gradient_time_history[seq_len(step)],
+    convergence_gradient_history =
+      convergence_gradient_history[seq_len(epochs_run)],
+    convergence_time_history = convergence_time_history[seq_len(epochs_run)],
+    epochs = epochs_run,
+    full_gradient_norm = full_gradient_norm,
+    converged = converged
   )
 }
 
@@ -205,7 +260,8 @@ sgd <- function(x, y, theta, lr0 = 0.001,
 # 8. Mini-batch SGD
 mini_batch_sgd <- function(x, y, theta, batch_size = 32,
                            lr0 = 0.001, max_epochs = 200,
-                           a = 0.6, K = 100, seed = 1) {
+                           a = 0.6, K = 100, tol = 1e-4, seed = 1,
+                           cb = NULL) {
   set.seed(seed)
   N <- length(y)
   history <- numeric(max_epochs)
@@ -215,6 +271,13 @@ mini_batch_sgd <- function(x, y, theta, batch_size = 32,
   trajectory[1, ] <- theta
   time_history <- numeric(max_steps + 1)
   start_time <- proc.time()[["elapsed"]]
+  gradient_norm_history <- numeric(max_steps)
+  gradient_time_history <- numeric(max_steps)
+  convergence_gradient_history <- numeric(max_epochs)
+  convergence_time_history <- numeric(max_epochs)
+  epochs_run <- 0
+  converged <- FALSE
+  full_gradient_norm <- Inf
 
   for (epoch in seq_len(max_epochs)) {
     # Shuffle: every observation used once per epoch
@@ -233,6 +296,13 @@ mini_batch_sgd <- function(x, y, theta, batch_size = 32,
         lapply(batch, function(i) grad_i(theta, x[i], y[i])
         )
       ) / length(batch)
+      grad_norm_sq <- sum(g^2)
+      gradient_norm_history[step] <- sqrt(grad_norm_sq)
+
+      if (!is.null(cb)) {
+        cb()
+      }
+      gradient_time_history[step] <- proc.time()[["elapsed"]] - start_time
 
       theta <- theta - lr * g
 
@@ -245,14 +315,37 @@ mini_batch_sgd <- function(x, y, theta, batch_size = 32,
     }
 
     history[epoch] <- full_loss(theta, x, y)
+    epochs_run <- epoch
+    full_gradient_norm <- sqrt(sum(full_gradient(theta, x, y)^2))
+    convergence_gradient_history[epoch] <- full_gradient_norm
+    convergence_time_history[epoch] <- proc.time()[["elapsed"]] - start_time
+
+    if (full_gradient_norm < tol) {
+      converged <- TRUE
+      break
+    }
+  }
+
+  if (!converged) {
+    warning(
+      "Mini-batch SGD did not reach the gradient-norm tolerance before max_epochs."
+    )
   }
 
   list(
     theta = theta,
     loss = full_loss(theta, x, y),
-    history = history,
+    history = history[seq_len(epochs_run)],
     trajectory = trajectory[seq_len(step + 1), , drop = FALSE],
-    time_history = time_history[seq_len(step + 1)]
+    time_history = time_history[seq_len(step + 1)],
+    gradient_norm_history = gradient_norm_history[seq_len(step)],
+    gradient_time_history = gradient_time_history[seq_len(step)],
+    convergence_gradient_history =
+      convergence_gradient_history[seq_len(epochs_run)],
+    convergence_time_history = convergence_time_history[seq_len(epochs_run)],
+    epochs = epochs_run,
+    full_gradient_norm = full_gradient_norm,
+    converged = converged
   )
 }
 
@@ -267,21 +360,28 @@ theta_start <- c(
   delta = 3.0
 )
 
-# Gradient descent
+# Trace the parameter vector and squared gradient norm at each update.
+gd_tracer <- tracer(c("theta", "grad_norm_sq"), Delta = 0)
+sgd_tracer <- tracer(c("theta", "grad_norm_sq"), Delta = 0)
+mb_tracer <- tracer(c("theta", "grad_norm_sq"), Delta = 0)
+
+# Gradient Descent
 result_gd <- gradient_descent(
   theta_init = theta_start,
   fn = fn,
-  gr = gr
+  gr = gr,
+  cb = gd_tracer$tracer
 )
 
 # SGD
 result_sgd <- sgd(
   x, y, theta_start,
   lr0 = 0.001,
-  max_epochs = 200,
+  max_epochs = 2000,
   a = 0.6,
   K = 10000,
-  seed = 1
+  seed = 1,
+  cb = sgd_tracer$tracer
 )
 
 # Mini-batch SGD
@@ -289,11 +389,16 @@ result_mb <- mini_batch_sgd(
   x, y, theta_start,
   batch_size = 32,
   lr0 = 0.001,
-  max_epochs = 200,
+  max_epochs = 2000,
   a = 0.6,
   K = 10000,
-  seed = 1
+  seed = 1,
+  cb = mb_tracer$tracer
 )
+
+#summary(gd_tracer)
+#summary(sgd_tracer)
+#summary(mb_tracer)
 
 # Sammenlign parameterestimater
 results <- rbind(
@@ -304,6 +409,33 @@ results <- rbind(
 )
 
 print(round(results, 4))
+print(data.frame(
+  method = c("SGD", "Mini-batch SGD"),
+  epochs = c(result_sgd$epochs, result_mb$epochs),
+  full_gradient_norm = c(
+    result_sgd$full_gradient_norm,
+    result_mb$full_gradient_norm
+  ),
+  converged = c(result_sgd$converged, result_mb$converged)
+))
+
+
+
+### --- Plots ---
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 # Compare Euclidean parameter distance to the true parameters.
 distance_history <- function(result, method) {
@@ -343,20 +475,151 @@ distance_by_iteration_plot <- ggplot(
   ) +
   theme_minimal()
 
-distance_by_time_plot <- ggplot(
-  distance_data[distance_data$time > 0, ],
-  aes(x = time, y = distance, color = method)
+gradient_norm_data <- bind_rows(
+  data.frame(
+    time = result_gd$gradient_time_history,
+    gradient_norm = result_gd$gradient_norm_history,
+    method = "GD"
+  ),
+  data.frame(
+    time = result_sgd$convergence_time_history,
+    gradient_norm = result_sgd$convergence_gradient_history,
+    method = "SGD"
+  ),
+  data.frame(
+    time = result_mb$convergence_time_history,
+    gradient_norm = result_mb$convergence_gradient_history,
+    method = "Mini-batch SGD"
+  )
+) %>%
+  filter(time > 0, gradient_norm > 0)
+
+gradient_norm_by_time_plot <- ggplot(
+  gradient_norm_data,
+  aes(x = time, y = gradient_norm, color = method)
 ) +
   geom_line(linewidth = 0.8) +
   scale_x_log10() +
   scale_y_log10() +
   labs(
-    title = "Parameter distance to truth over elapsed time",
+    title = "Full-data gradient norm over elapsed time",
     x = "Elapsed time (seconds)",
-    y = "Euclidean distance to true parameters",
+    y = "Norm of full-data gradient",
     color = "Method"
   ) +
   theme_minimal()
 
 print(distance_by_iteration_plot)
-print(distance_by_time_plot)
+print(gradient_norm_by_time_plot)
+
+
+
+
+
+
+# Plot the optimization paths projected onto the alpha-beta plane.
+make_path_data <- function(result, method, max_points = 1e1000) {
+  trajectory <- result$trajectory
+  keep <- unique(round(seq(
+    from = 1,
+    to = nrow(trajectory),
+    length.out = min(nrow(trajectory), max_points)
+  )))
+
+  data.frame(
+    alpha = trajectory[keep, 1],
+    beta = trajectory[keep, 2],
+    iteration = keep - 1,
+    method = method
+  )
+}
+
+trajectory_plot_data <- bind_rows(
+  make_path_data(result_gd, "GD"),
+  make_path_data(result_sgd, "SGD"),
+  make_path_data(result_mb, "Mini-batch SGD")
+)
+
+alpha_range <- range(trajectory_plot_data$alpha, theta_true["alpha"])
+beta_range <- range(trajectory_plot_data$beta, theta_true["beta"])
+alpha_padding <- 0.08 * diff(alpha_range)
+beta_padding <- 0.08 * diff(beta_range)
+alpha_range <- alpha_range + c(-alpha_padding, alpha_padding)
+beta_range <- beta_range + c(-beta_padding, beta_padding)
+
+contour_grid <- expand.grid(
+  alpha = seq(alpha_range[1], alpha_range[2], length.out = 80),
+  beta = seq(beta_range[1], beta_range[2], length.out = 80)
+)
+contour_grid$loss <- vapply(
+  seq_len(nrow(contour_grid)),
+  function(i) {
+    theta_slice <- c(
+      alpha = contour_grid$alpha[i],
+      beta = contour_grid$beta[i],
+      gamma = theta_true["gamma"],
+      delta = theta_true["delta"]
+    )
+    mean((y - dose_response(x, theta_slice))^2)
+  },
+  numeric(1)
+)
+
+path_plot <- ggplot() +
+  geom_contour(
+    data = contour_grid,
+    aes(x = alpha, y = beta, z = loss),
+    color = "grey70"
+  ) +
+  geom_path(
+    data = trajectory_plot_data,
+    aes(x = alpha, y = beta, color = method, group = method),
+    linewidth = 0.7,
+    alpha = 0.85
+  ) +
+  geom_point(
+    data = data.frame(alpha = theta_start[1], beta = theta_start[2]),
+    aes(x = alpha, y = beta),
+    shape = 4,
+    size = 3,
+    stroke = 1.2,
+    color = "black"
+  ) +
+  geom_point(
+    data = data.frame(alpha = theta_true[1], beta = theta_true[2]),
+    aes(x = alpha, y = beta),
+    shape = 8,
+    size = 3,
+    stroke = 1.2,
+    color = "black"
+  ) +
+  annotate(
+    "text",
+    x = theta_start[1],
+    y = theta_start[2],
+    label = "Start",
+    hjust = -0.15,
+    vjust = 1.2
+  ) +
+  annotate(
+    "text",
+    x = theta_true[1],
+    y = theta_true[2],
+    label = "True",
+    hjust = -0.15,
+    vjust = -0.5
+  ) +
+  coord_cartesian(xlim = alpha_range, ylim = beta_range) +
+  labs(
+    title = "Optimization paths toward the true parameters",
+    subtitle = "Paths projected onto alpha-beta; contours fix gamma and delta at their true values",
+    x = expression(alpha),
+    y = expression(beta),
+    color = "Method"
+  ) +
+  theme_minimal()
+
+print(path_plot)
+
+
+
