@@ -1,11 +1,15 @@
 
 gradient_descent <- function(theta_init, fn, gr, tol = 1e-8, max_iter = 1000, 
-                             gamma_0 = 1.0, c = 0.1, d = 0.5) {
+                             gamma_0 = 1.0, c = 0.1, d = 0.5, cb = NULL) {
   theta <- theta_init
 
   for (i in seq_len(max_iter)) {
     grad <- gr(theta)
     grad_norm_sq <- sum(grad^2)
+
+    if (!is.null(cb)) {
+      cb() # Record the current state for later inspection.
+    }
 
     if (sqrt(grad_norm_sq) <= tol) {
       message("Converged successfully after ", i, " iterations.")
@@ -32,13 +36,17 @@ gradient_descent <- function(theta_init, fn, gr, tol = 1e-8, max_iter = 1000,
 }
 
 damped_newton <- function(theta_init, fn, gr, hess, tol = 1e-8, max_iter = 100, 
-                          c = 0.1, d = 0.5) {
+                          c = 0.1, d = 0.5, cb = NULL) {
   theta <- theta_init
 
   for (i in seq_len(max_iter)) {
 
     grad <- gr(theta)
     grad_norm <- sqrt(sum(grad^2))
+
+    if (!is.null(cb)) {
+      cb() # Record the current state for later inspection.
+    }
 
     if (grad_norm <= tol) {
       message("Converged successfully after ", i, " iterations.")
@@ -73,11 +81,19 @@ damped_newton <- function(theta_init, fn, gr, hess, tol = 1e-8, max_iter = 100,
   return(list(theta = theta, gamma = gamma))
 }
 
-
-
 # test_fct <- function(theta) sum((theta - c(2, -1))^2)
 # test_fct_prime <- function(theta) 2 * (theta - c(2, -1))
 # test_fct_hess <- function(theta) 2 * diag(length(theta))
 
 # gradient_descent(c(0, 0), test_fct, test_fct_prime)
 # damped_newton(c(0, 0), test_fct, test_fct_prime, test_fct_hess)
+
+library(CSwR)
+
+# gd_tracer <- tracer(c("theta", "grad_norm_sq"), Delta = 0)
+# gradient_descent(c(1, -2), test_fct, test_fct_prime, cb = gd_tracer$tracer)
+# summary(gd_tracer)
+
+# dn_tracer <- tracer(c("theta", "grad_norm"), Delta = 0)
+# damped_newton(c(1, -2), test_fct, test_fct_prime, test_fct_hess, cb = dn_tracer$tracer)
+# summary(dn_tracer)
