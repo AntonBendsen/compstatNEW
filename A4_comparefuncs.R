@@ -1,17 +1,17 @@
 
-gradient_descent <- function(theta_init, fn, gr, tol = 1e-8, max_iter = 1000, 
+gradient_descent <- function(theta_init, fn, gr, tol = 1e-4, max_iter = 1000, 
                              gamma_0 = 1.0, c = 0.1, d = 0.5, cb = NULL) {
   theta <- theta_init
 
   for (i in seq_len(max_iter)) {
     grad <- gr(theta)
-    grad_norm_sq <- sum(grad^2)
+    grad_norm <- sqrt(sum(grad^2))
 
     if (!is.null(cb)) {
       cb() # Record the current state for later inspection.
     }
 
-    if (sqrt(grad_norm_sq) <= tol) {
+    if (grad_norm <= tol) {
       message("Converged successfully after ", i, " iterations.")
       return(list(theta = theta, gamma = gamma))
     }
@@ -19,7 +19,7 @@ gradient_descent <- function(theta_init, fn, gr, tol = 1e-8, max_iter = 1000,
     gamma <- gamma_0
     f_curr <- fn(theta)
 
-    while (fn(theta - gamma * grad) > f_curr - c * gamma * grad_norm_sq) {
+    while (fn(theta - gamma * grad) > f_curr - c * gamma * grad_norm^2) {
       gamma <- d * gamma
 
       if (gamma < 1e-16) {
@@ -35,7 +35,7 @@ gradient_descent <- function(theta_init, fn, gr, tol = 1e-8, max_iter = 1000,
   return(list(theta = theta, gamma = gamma))
 }
 
-damped_newton <- function(theta_init, fn, gr, hess, tol = 1e-8, max_iter = 100, 
+damped_newton <- function(theta_init, fn, gr, hess, tol = 1e-4, max_iter = 100, 
                           c = 0.1, d = 0.5, cb = NULL) {
   theta <- theta_init
 
@@ -81,19 +81,168 @@ damped_newton <- function(theta_init, fn, gr, hess, tol = 1e-8, max_iter = 100,
   return(list(theta = theta, gamma = gamma))
 }
 
-# test_fct <- function(theta) sum((theta - c(2, -1))^2)
-# test_fct_prime <- function(theta) 2 * (theta - c(2, -1))
-# test_fct_hess <- function(theta) 2 * diag(length(theta))
+dose_response <- function(x, theta) {
+  alpha <- theta[1]
+  beta  <- theta[2]
+  gamma <- theta[3]
+  delta <- theta[4]
 
-# gradient_descent(c(0, 0), test_fct, test_fct_prime)
-# damped_newton(c(0, 0), test_fct, test_fct_prime, test_fct_hess)
+  p <- plogis(-beta * (log(x) - alpha))
+
+  gamma + (delta - gamma) * p
+}
+
+set.seed(123)
+
+theta_true <- c(
+  alpha = 2.5,
+  beta  = 1.4,
+  gamma = 0.5,
+  delta = 4.0
+)
+
+N <- 2000
+sigma <- 0.25
+
+# 15 grid points on the log-dose scale
+log_grid <- seq(1, 5, length.out = 15)
+x <- exp(sample(log_grid, N, replace = TRUE))
+
+y <- dose_response(x, theta_true) +
+  rnorm(N, mean = 0, sd = sigma)
+
+
+# 3. Observation-level loss: 1/2 * residual^2
+loss_i <- function(theta, x, y) {
+  residual <- y - dose_response(x, theta)
+  0.5 * residual^2
+}
+
+# 4. Gradient of one observation's loss
+grad_i <- function(theta, x, y) {
+  alpha <- theta[1]
+  beta  <- theta[2]
+  gamma <- theta[3]
+  delta <- theta[4]
+
+  lx <- log(x)
+  p <- plogis(-beta * (lx - alpha)) # as plogis is the logistic function so plogis(z) = 1 / (1 + exp(-z))
+  q <- p * (1 - p)
+
+  fit <- gamma + (delta - gamma) * p
+  residual <- y - fit
+
+  df <- c(
+    (delta - gamma) * beta * q,
+    -(delta - gamma) * (lx - alpha) * q,
+    1 - p,
+    p
+  )
+
+  -residual * df
+}
+
+full_loss <- function(theta, x, y) {
+  mean(vapply(
+    seq_along(y),
+    function(i) loss_i(theta, x[i], y[i]),
+    numeric(1)
+  ))
+}
+
+full_gradient <- function(theta, x, y) {
+  g <- numeric(4)
+
+  for (i in seq_along(y)) {
+    g <- g + grad_i(theta, x[i], y[i])
+  }
+
+  g / length(y)
+}
+
+hess_i <- function(theta, x, y) {
+  alpha <- theta[1]
+  beta  <- theta[2]
+  gamma <- theta[3]
+  delta <- theta[4]
+
+  u <- log(x) - alpha
+  p <- plogis(-beta * u)
+  q <- p * (1 - p)
+  q_prime <- q * (1 - 2 * p)
+
+  residual <- y - dose_response(x, theta)
+  df <- c(
+    (delta - gamma) * beta * q,
+    -(delta - gamma) * u * q,
+    1 - p,
+    p
+  )
+
+  hess_f <- matrix(0, nrow = 4, ncol = 4)
+  hess_f[1, 1] <- (delta - gamma) * q_prime * beta^2
+  hess_f[1, 2] <- hess_f[2, 1] <-
+    (delta - gamma) * (q - beta * u * q_prime)
+  hess_f[2, 2] <- (delta - gamma) * u^2 * q_prime
+  hess_f[1, 3] <- hess_f[3, 1] <- -beta * q
+  hess_f[1, 4] <- hess_f[4, 1] <- beta * q
+  hess_f[2, 3] <- hess_f[3, 2] <- u * q
+  hess_f[2, 4] <- hess_f[4, 2] <- -u * q
+
+  tcrossprod(df) - residual * hess_f
+}
+
+full_hessian <- function(theta, x, y) {
+  H <- matrix(0, nrow = 4, ncol = 4)
+
+  for (i in seq_along(y)) {
+    H <- H + hess_i(theta, x[i], y[i])
+  }
+
+  H / length(y)
+}
+
+
+# 6. Gradient Descent
+fn <- function(theta) full_loss(theta, x, y)
+gr <- function(theta) full_gradient(theta, x, y)
+hess <- function(theta) full_hessian(theta, x, y)
 
 library(CSwR)
 
-# gd_tracer <- tracer(c("theta", "grad_norm_sq"), Delta = 0)
-# gradient_descent(c(1, -2), test_fct, test_fct_prime, cb = gd_tracer$tracer)
-# summary(gd_tracer)
+gd_tracer <- tracer(c("theta", "grad_norm"), Delta = 0)
+gradient_descent(c(2.2, 1.7, 0.3, 4.7), fn, gr, cb = gd_tracer$tracer)
+dn_tracer <- tracer(c("theta", "grad_norm"), Delta = 0)
+damped_newton(c(2.2, 1.7, 0.3, 4.7), fn, gr, hess, cb = dn_tracer$tracer)
 
-# dn_tracer <- tracer(c("theta", "grad_norm"), Delta = 0)
-# damped_newton(c(1, -2), test_fct, test_fct_prime, test_fct_hess, cb = dn_tracer$tracer)
-# summary(dn_tracer)
+gd_summary <- summary(gd_tracer)
+dn_summary <- summary(dn_tracer)
+
+library(ggplot2)
+
+plot_convergence <- function(gd_summary, dn_summary) {
+  plot_data <- rbind(
+    transform(gd_summary, algorithm = "Gradient descent"),
+    transform(dn_summary, algorithm = "Damped Newton")
+  )
+
+  ggplot(
+    plot_data,
+    aes(x = .time, y = grad_norm, color = algorithm, group = algorithm)
+  ) +
+    geom_line(linewidth = 1.2) +
+    geom_point(size = 2) +
+    scale_y_log10() +
+    scale_color_manual(values = c(
+      "Gradient descent" = "steelblue",
+      "Damped Newton" = "firebrick"
+    )) +
+    labs(
+      x = "Time",
+      y = "Norm of Gradient",
+      color = "Algorithm"
+    ) +
+    theme_minimal()
+}
+
+plot_convergence(gd_summary, dn_summary)
