@@ -47,12 +47,43 @@ x <- exp(sample(log_grid, N, replace = TRUE))
 y <- dose_response(x, theta_true) +
   rnorm(N, mean = 0, sd = sigma)
 
+dose_grid <- exp(seq(min(log(x)), max(log(x)), length.out = 300))
+data_generating_curve <- data.frame(
+  dose = dose_grid,
+  response = dose_response(dose_grid, theta_true)
+)
+
+simulated_data_plot <- ggplot(data.frame(dose = x, response = y),
+                              aes(x = dose, y = response)) +
+  geom_point(alpha = 0.3, color = "grey35") +
+  geom_line(
+    data = data_generating_curve,
+    aes(x = dose, y = response),
+    color = "black",
+    linetype = "dashed",
+    linewidth = 1
+  ) +
+  scale_x_log10() +
+  labs(
+    title = "Simulated dose-response data",
+    subtitle = "Dashed line is the data-generating curve",
+    x = "Dose (log scale)",
+    y = "Response"
+  ) +
+  theme_minimal()
+
+print(simulated_data_plot)
+
+
 
 # 3. Observation-level loss: 1/2 * residual^2
 loss_i <- function(theta, x, y) {
   residual <- y - dose_response(x, theta)
   0.5 * residual^2
 }
+
+
+
 
 
 # 4. Gradient of one observation's loss
