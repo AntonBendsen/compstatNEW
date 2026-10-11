@@ -1,5 +1,5 @@
 
-gradient_descent <- function(theta_init, fn, gr, tol = 1e-5, max_iter = 1000,
+gradient_descent <- function(theta_init, fn, gr, tol = 1e-4, max_iter = 1000,
                             gamma_0 = 2.0, c = 0.25, d = 0.75, cb = NULL) {
   theta <- theta_init
   gamma <- gamma_0 # Initialize gamma to avoid errors on early convergence
@@ -35,7 +35,7 @@ gradient_descent <- function(theta_init, fn, gr, tol = 1e-5, max_iter = 1000,
   return(list(theta = theta, gamma = gamma))
 }
 
-damped_newton <- function(theta_init, fn, gr, hess, tol = 1e-5, max_iter = 100,
+damped_newton <- function(theta_init, fn, gr, hess, tol = 1e-4, max_iter = 100,
                           gamma_0 = 1.0, c = 0.25, d = 0.5, cb = NULL) {
   theta <- theta_init
   gamma <- gamma_0
@@ -82,7 +82,7 @@ damped_newton <- function(theta_init, fn, gr, hess, tol = 1e-5, max_iter = 100,
 
 stochastic_gradient_descent <- function(theta_init, x, y, batch_size = 200,
                                          gamma_0 = 0.5, K = 2500, a = 1,
-                                         max_epochs = 1000,
+                                         max_epochs = 500,
                                          cb = NULL) {
   theta <- theta_init
   n <- length(y)
@@ -277,6 +277,7 @@ compare_optimizers <- function(theta_init, N, sigma, ...) {
   ) +
     geom_line(linewidth = 1.2) +
     geom_point(size = 2) +
+    scale_x_log10() +
     scale_y_log10() +
     scale_color_manual(values = c(
       "Gradient descent" = "steelblue",
@@ -300,14 +301,36 @@ compare_optimizers <- function(theta_init, N, sigma, ...) {
   )
 }
 
-comparison_2000 <- compare_optimizers(
-  c(2, 1, 3, 5), N = 2000, sigma = 0.25, batch_size = 50
+set.seed(123)
+comparison_1000_1 <- compare_optimizers(
+  c(2, 1, 3, 5), N = 1000, sigma = 0.25, batch_size = 1
+)
+set.seed(123)
+comparison_10000_1 <- compare_optimizers(
+  c(2, 1, 3, 5), N = 10000, sigma = 0.25, batch_size = 1
+)
+set.seed(123)
+comparison_100000_1 <- compare_optimizers(
+  c(2, 1, 3, 5), N = 100000, sigma = 0.25, batch_size = 1
 )
 
-comparison_2000$convergence_plot
+comparison_1000_1$convergence_plot
+comparison_10000_1$convergence_plot
+comparison_100000_1$convergence_plot
 
-comparison_10000 <- compare_optimizers(
-  c(2, 1, 3, 5), N = 10000, sigma = 0.25, batch_size = 50
+set.seed(123)
+comparison_5000_1 <- compare_optimizers(
+  c(2, 1, 3, 5), N = 5000, sigma = 0.25, batch_size = 1
+)
+set.seed(123)
+comparison_5000_100 <- compare_optimizers(
+  c(2, 1, 3, 5), N = 5000, sigma = 0.25, batch_size = 100
+)
+set.seed(123)
+comparison_5000_1000 <- compare_optimizers(
+  c(2, 1, 3, 5), N = 5000, sigma = 0.25, batch_size = 1000
 )
 
-comparison_10000$convergence_plot
+comparison_5000_1$convergence_plot
+comparison_5000_100$convergence_plot
+comparison_5000_1000$convergence_plot
