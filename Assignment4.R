@@ -12,7 +12,7 @@ rnorm(100)
 test <- rnorm(100)
 test
 
-
+##ee
 
 # 1. Model
 dose_response <- function(x, theta) {
@@ -37,7 +37,7 @@ theta_true <- c(
   delta = 4.0
 )
 
-N <- 5000
+N <- 1000
 sigma <- 0.25
 
 # 15 grid points on the log-dose scale
@@ -140,6 +140,96 @@ full_hessian <- function(theta, x, y) {
   hessian / length(y)
 }
 
+#
+#We use newton to find the "sample theta values"
+
+
+damped_newton <- function(theta_init, fn, gr, hess, tol = 1e-3, max_iter = 100, 
+                          c = 0.1, d = 0.5, cb = NULL) {
+  theta <- theta_init
+
+  for (i in seq_len(max_iter)) {
+
+    grad <- gr(theta)
+    grad_norm <- sqrt(sum(grad^2))
+
+    if (!is.null(cb)) {
+      cb() # Record the current state for later inspection.
+    }
+
+    if (grad_norm <= tol) {
+      message("Converged successfully after ", i, " iterations.")
+      return(list(theta = theta, gamma = gamma))
+    }
+
+    H_mat <- hess(theta)
+    v <- solve(H_mat, -grad)
+
+    if (sum(grad * v) >= 0) {
+      warning("Newton direction is not a descent direction. Falling back to negative gradient.")
+      v <- -grad
+    }
+
+    gamma <- 1.0
+    f_curr <- fn(theta)
+    directional_derivative <- sum(grad * v) 
+
+    while (fn(theta + gamma * v) > f_curr + c * gamma * directional_derivative) {
+      gamma <- d * gamma
+
+      if (gamma < 1e-16) {
+        warning("Line search failed to find a sufficient decrease step.")
+        break
+      }
+    }
+
+    theta <- theta + gamma * v
+  }
+
+  warning("Maximum number of iterations reached without full convergence.")
+  return(list(theta = theta, gamma = gamma))
+}
+
+fn <- function(theta) full_loss(theta, x, y)
+gr <- function(theta) full_gradient(theta, x, y)
+hess <- function(theta) full_hessian(theta, x, y)
+
+expand_sample_theta <- function(theta_ab) {
+  c(
+    alpha = unname(theta_ab[1]),
+    beta = unname(theta_ab[2]),
+    gamma = unname(theta_true["gamma"]),
+    delta = unname(theta_true["delta"])
+  )
+}
+
+fn_sample_ab <- function(theta_ab) {
+  full_loss(expand_sample_theta(theta_ab), x, y)
+}
+gr_sample_ab <- function(theta_ab) {
+  full_gradient(expand_sample_theta(theta_ab), x, y)[1:2]
+}
+hess_sample_ab <- function(theta_ab) {
+  full_hessian(expand_sample_theta(theta_ab), x, y)[1:2, 1:2]
+}
+
+set.seed(123)
+newton_sample_fit <- damped_newton(
+  theta_init = c(alpha = 2.0, beta = 1.0),
+  fn = fn_sample_ab,
+  gr = gr_sample_ab,
+  hess = hess_sample_ab,
+  tol = 1e-12
+)
+theta_ab_sample <- newton_sample_fit$theta
+theta_sample <- expand_sample_theta(theta_ab_sample)
+damped_newton_alpha <- theta_sample[1]
+damped_newton_beta <- theta_sample[2]
+damped_newton_gamma <- theta_sample[3]
+damped_newton_delta <- theta_sample[4]
+
+
+#
 
 ### We now implement the optimization algorithms: gradient descent, stochastic gradient descent, and mini-batch stochastic gradient descent.
 
@@ -151,7 +241,7 @@ full_hessian <- function(theta, x, y) {
 # Explore SGD with gamma and delta fixed at their true values.
 sgd_two_parameters <- function(x, y, theta_ab, gamma_fixed, delta_fixed,
                                lr0, max_epochs = 200, a = 1,
-                               K = 2500, theta_ab_true, seed = 1) {
+                               K = 2500, theta_ab_target, seed = 1) {
   set.seed(seed)
   N <- length(y)
   theta <- c(
@@ -179,7 +269,7 @@ sgd_two_parameters <- function(x, y, theta_ab, gamma_fixed, delta_fixed,
       trajectory[step + 1, ] <- theta[1:2]
     }
 
-    parameter_mse[epoch] <- mean((theta[1:2] - theta_ab_true)^2)
+    parameter_mse[epoch] <- mean((theta[1:2] - theta_ab_target)^2)
     objective[epoch] <- full_loss(theta, x, y)
     elapsed_time[epoch] <- proc.time()[["elapsed"]] - start_time
   }
@@ -206,7 +296,7 @@ sgd_experiments <- lapply(learning_rates, function(rate) {
     theta_ab = theta_ab_start,
     gamma_fixed = theta_true["gamma"],
     delta_fixed = theta_true["delta"],
-    theta_ab_true = theta_true[c("alpha", "beta")],
+    theta_ab_target = theta_ab_sample,
     lr0 = rate,
     max_epochs = 200,
     a = 1,
@@ -256,7 +346,7 @@ decay_results <- bind_rows(lapply(seq_len(nrow(decay_grid)), function(i) {
     theta_ab = theta_ab_start,
     gamma_fixed = theta_true["gamma"],
     delta_fixed = theta_true["delta"],
-    theta_ab_true = theta_true[c("alpha", "beta")],
+    theta_ab_target = theta_ab_sample,
     lr0 = heatmap_lr0,
     max_epochs = heatmap_epochs,
     a = decay_grid$a[i],
@@ -372,7 +462,7 @@ sgd_parameter_mse_time_plot <- ggplot(
   labs(
     title = "Parameter MSE versus elapsed time",
     x = "Elapsed time (seconds)",
-    y = "MSE to the true alpha and beta",
+    y = "MSE to Newton sample alpha and beta",
     color = "Learning rate"
   ) +
   theme_minimal()
@@ -466,8 +556,8 @@ sgd_two_parameter_path_plot <- ggplot() +
   ) +
   geom_point(
     data = data.frame(
-      alpha = theta_true["alpha"],
-      beta = theta_true["beta"]
+      alpha = theta_ab_sample["alpha"],
+      beta = theta_ab_sample["beta"]
     ),
     aes(x = alpha, y = beta),
     shape = 8,
@@ -480,7 +570,7 @@ sgd_two_parameter_path_plot <- ggplot() +
   ) +
   labs(
     title = "SGD paths with gamma and delta fixed",
-    subtitle = "Comparing learning rates; cross = start, star = true parameters",
+    subtitle = "Comparing learning rates; cross = start, star = Newton sample estimate",
     x = expression(alpha),
     y = expression(beta),
     color = "Learning rate",
@@ -506,10 +596,10 @@ sgd_parameter_mse_plot <- ggplot(
   geom_line(linewidth = 0.8) +
   scale_y_log10() +
   labs(
-    title = "MSE to the true parameters during SGD",
+    title = "MSE to Newton sample parameters during SGD",
     x = "Epoch",
-    y = expression(frac((hat(alpha)-alpha[true])^2 +
-                          (hat(beta)-beta[true])^2, 2)),
+    y = expression(frac((hat(alpha)-alpha[sample])^2 +
+                (hat(beta)-beta[sample])^2, 2)),
     color = "Learning rate"
   ) +
   theme_minimal()
@@ -536,7 +626,7 @@ seed_trajectories <- lapply(trajectory_seeds, function(seed_value) {
     theta_ab = theta_ab_start,
     gamma_fixed = theta_true["gamma"],
     delta_fixed = theta_true["delta"],
-    theta_ab_true = theta_true[c("alpha", "beta")],
+    theta_ab_target = theta_ab_sample,
     lr0 = trajectory_lr0,
     max_epochs = trajectory_epochs,
     a = trajectory_a,
@@ -616,8 +706,8 @@ sgd_seed_trajectory_plot <- ggplot() +
   ) +
   geom_point(
     data = data.frame(
-      alpha = theta_true["alpha"],
-      beta = theta_true["beta"]
+      alpha = theta_ab_sample["alpha"],
+      beta = theta_ab_sample["beta"]
     ),
     aes(x = alpha, y = beta),
     shape = 8,
@@ -631,7 +721,7 @@ sgd_seed_trajectory_plot <- ggplot() +
       "lr0 = ", trajectory_lr0,
       ", a = ", trajectory_a,
       ", K = ", trajectory_K,
-      "; cross = start, star = true parameters"
+      "; cross = start, star = Newton sample estimate"
     ),
     x = expression(alpha),
     y = expression(beta),
@@ -661,7 +751,7 @@ start_value_trajectories <- lapply(seq_len(nrow(starting_values)), function(i) {
     ),
     gamma_fixed = theta_true["gamma"],
     delta_fixed = theta_true["delta"],
-    theta_ab_true = theta_true[c("alpha", "beta")],
+    theta_ab_target = theta_ab_sample,
     lr0 = trajectory_lr0,
     max_epochs = trajectory_epochs,
     a = trajectory_a,
@@ -767,8 +857,8 @@ sgd_start_value_trajectory_plot <- ggplot() +
   ) +
   geom_point(
     data = data.frame(
-      alpha = unname(theta_true["alpha"]),
-      beta = unname(theta_true["beta"])
+      alpha = unname(theta_ab_sample["alpha"]),
+      beta = unname(theta_ab_sample["beta"])
     ),
     aes(x = alpha, y = beta),
     shape = 8,
@@ -785,7 +875,7 @@ sgd_start_value_trajectory_plot <- ggplot() +
       "Same seed and hyperparameters: lr0 = ", trajectory_lr0,
       ", a = ", trajectory_a,
       ", K = ", trajectory_K,
-      "; crosses = starts, circles = final points, star = true parameters"
+      "; crosses = starts, circles = final points, star = Newton sample estimate"
     ),
     x = expression(alpha),
     y = expression(beta),
@@ -1486,7 +1576,7 @@ if (!sgd_history_is_current) {
     theta_ab = theta_ab_start,
     gamma_fixed = theta_true["gamma"],
     delta_fixed = theta_true["delta"],
-    theta_ab_true = theta_true[c("alpha", "beta")],
+    theta_ab_target = theta_ab_sample,
     lr0 = comparison_lr0,
     max_epochs = comparison_epochs,
     a = comparison_a,
@@ -1554,8 +1644,9 @@ comparison_paths$method <- factor(
   levels = c("Ordinary SGD", names(mini_batch_results))
 )
 
-contour_alpha <- range(comparison_paths$alpha, theta_true["alpha"])
-contour_beta <- range(comparison_paths$beta, theta_true["beta"])
+theta_ab_newton <- unname(theta_ab_sample)
+contour_alpha <- range(comparison_paths$alpha, theta_ab_newton[1])
+contour_beta <- range(comparison_paths$beta, theta_ab_newton[2])
 contour_grid <- expand.grid(
   alpha = seq(contour_alpha[1], contour_alpha[2], length.out = 80),
   beta = seq(contour_beta[1], contour_beta[2], length.out = 80)
@@ -1577,7 +1668,7 @@ mini_batch_contour_plot <- ggplot() +
     alpha = 0.9
   ) +
   geom_point(
-    data = data.frame(alpha = theta_true["alpha"], beta = theta_true["beta"]),
+    data = data.frame(alpha = theta_ab_newton[1], beta = theta_ab_newton[2]),
     aes(x = alpha, y = beta),
     shape = 8,
     size = 3,
@@ -1590,7 +1681,7 @@ mini_batch_contour_plot <- ggplot() +
       "a = ", comparison_a,
       ", K = ", comparison_K,
       ", lr0 = ", comparison_lr0,
-      "; star = true parameters"
+      "; star = constrained Newton estimate"
     ),
     x = expression(alpha),
     y = expression(beta),
@@ -1599,8 +1690,7 @@ mini_batch_contour_plot <- ggplot() +
   theme_minimal() +
   theme(legend.position = "none")
 
-theta_ab_true <- unname(theta_true[c("alpha", "beta")])
-initial_parameter_error <- sqrt(sum((theta_ab_start - theta_ab_true)^2))
+initial_parameter_error <- sqrt(sum((theta_ab_start - theta_ab_newton)^2))
 
 parameter_error_comparison <- bind_rows(
   data.frame(
@@ -1609,7 +1699,7 @@ parameter_error_comparison <- bind_rows(
       initial_parameter_error,
       sqrt(rowSums(
         (sgd_reference$trajectory[sgd_epoch_rows, 1:2, drop = FALSE] -
-           matrix(theta_ab_true, nrow = comparison_epochs, ncol = 2,
+            matrix(theta_ab_newton, nrow = comparison_epochs, ncol = 2,
                   byrow = TRUE))^2
       ))
     ),
@@ -1626,7 +1716,7 @@ parameter_error_comparison <- bind_rows(
         initial_parameter_error,
         sqrt(rowSums(
           (result$trajectory[epoch_rows, 1:2, drop = FALSE] -
-             matrix(theta_ab_true, nrow = comparison_epochs, ncol = 2,
+               matrix(theta_ab_newton, nrow = comparison_epochs, ncol = 2,
                     byrow = TRUE))^2
         ))
       ),
@@ -1646,15 +1736,14 @@ mini_batch_parameter_error_plot <- ggplot(
   scale_x_continuous(trans = scales::pseudo_log_trans(sigma = 0.1)) +
   scale_y_log10() +
   labs(
-    title = "Distance to true parameters over time",
+    title = "Distance to constrained Newton estimate over time",
     subtitle = paste0(
       "a = ", comparison_a,
       ", K = ", comparison_K,
       ", lr0 = ", comparison_lr0
     ),
     x = "Elapsed time (seconds)",
-    y = expression(sqrt((hat(alpha) - alpha[true])^2 +
-                          (hat(beta) - beta[true])^2)),
+    y = "Euclidean distance to Newton estimate",
     color = "Method"
   ) +
   theme_minimal()
@@ -1668,10 +1757,9 @@ early_parameter_error_plot <- ggplot(
   scale_y_log10() +
   scale_x_continuous(breaks = seq(0, 20, by = 2)) +
   labs(
-    title = "Distance to true parameters: first 20 epochs",
+    title = "Distance to constrained Newton estimate: first 20 epochs",
     x = "Epoch",
-    y = expression(sqrt((hat(alpha) - alpha[true])^2 +
-                          (hat(beta) - beta[true])^2)),
+    y = "Euclidean distance to Newton estimate",
     color = "Method"
   ) +
   theme_minimal()
@@ -1858,13 +1946,14 @@ damped_newton_ab <- function(theta_init, tol = 1e-6, max_iter = 100,
 
 result_gd_ab <- gradient_descent_ab(theta_ab_start)
 result_newton_ab <- damped_newton_ab(theta_ab_start)
+theta_ab_newton <- unname(result_newton_ab$theta)
 result_sgd_ab <- sgd_two_parameters(
   x = x,
   y = y,
   theta_ab = theta_ab_start,
   gamma_fixed = gamma_fixed,
   delta_fixed = delta_fixed,
-  theta_ab_true = theta_ab_true,
+  theta_ab_target = theta_ab_newton,
   lr0 = 0.005,
   max_epochs = 200,
   a = 1,
@@ -1881,8 +1970,8 @@ comparison_summary <- data.frame(
   loss = c(result_gd_ab$loss, result_newton_ab$loss,
            result_sgd_ab$final_loss),
   parameter_mse = c(
-    mean((result_gd_ab$theta - theta_ab_true)^2),
-    mean((result_newton_ab$theta - theta_ab_true)^2),
+    mean((result_gd_ab$theta - theta_ab_newton)^2),
+    mean((result_newton_ab$theta - theta_ab_newton)^2),
     result_sgd_ab$final_parameter_mse
   ),
   elapsed_seconds = c(
@@ -1893,40 +1982,47 @@ comparison_summary <- data.frame(
 )
 print(comparison_summary)
 
-comparison_gradient_data <- bind_rows(
+sgd_epoch_rows <- seq_len(result_sgd_ab$epochs) * length(y) + 1L
+
+comparison_parameter_mse_data <- bind_rows(
   data.frame(
-    time = result_gd_ab$gradient_time_history,
-    gradient_norm = result_gd_ab$gradient_norm_history,
+    time = result_gd_ab$time_history,
+    parameter_mse = rowMeans((result_gd_ab$trajectory -
+      matrix(theta_ab_newton, nrow = nrow(result_gd_ab$trajectory), ncol = 2,
+             byrow = TRUE))^2),
     method = "Gradient descent"
   ),
   data.frame(
-    time = result_newton_ab$gradient_time_history,
-    gradient_norm = result_newton_ab$gradient_norm_history,
+    time = result_newton_ab$time_history,
+    parameter_mse = rowMeans((result_newton_ab$trajectory -
+      matrix(theta_ab_newton, nrow = nrow(result_newton_ab$trajectory), ncol = 2,
+             byrow = TRUE))^2),
     method = "Damped Newton"
   ),
   data.frame(
-    time = result_sgd_ab$elapsed_time,
-    gradient_norm = vapply(seq_len(result_sgd_ab$epochs), function(epoch) {
-      sqrt(sum(gr_ab(result_sgd_ab$trajectory[
-        match(epoch * length(y) + 1, seq_len(nrow(result_sgd_ab$trajectory))),
-      ] )^2))
-    }, numeric(1)),
+    time = c(0, result_sgd_ab$elapsed_time),
+    parameter_mse = c(
+      mean((theta_ab_start - theta_ab_newton)^2),
+      rowMeans((result_sgd_ab$trajectory[sgd_epoch_rows, , drop = FALSE] -
+        matrix(theta_ab_newton, nrow = result_sgd_ab$epochs, ncol = 2,
+               byrow = TRUE))^2)
+    ),
     method = "SGD"
   )
 ) %>%
-  filter(time > 0, gradient_norm > 0, is.finite(gradient_norm))
+  filter(time >= 0, parameter_mse > 0, is.finite(parameter_mse))
 
-comparison_gradient_plot <- ggplot(
-  comparison_gradient_data,
-  aes(x = time, y = gradient_norm, color = method)
+comparison_parameter_mse_plot <- ggplot(
+  comparison_parameter_mse_data,
+  aes(x = time, y = parameter_mse, color = method)
 ) +
   geom_line(linewidth = 0.8) +
-  scale_x_log10() +
+  scale_x_continuous(trans = scales::pseudo_log_trans(sigma = 0.1)) +
   scale_y_log10() +
   labs(
-    title = "Convergence using alpha and beta",
+    title = "Parameter MSE to the Newton estimate",
     x = "Elapsed time (seconds)",
-    y = "Full-data gradient norm",
+    y = "Mean squared parameter error",
     color = "Method"
   ) +
   theme_minimal()
@@ -1944,11 +2040,11 @@ comparison_path_data <- bind_rows(
 )
 names(comparison_path_data)[1:2] <- c("alpha", "beta")
 
+comparison_alpha_range <- range(comparison_path_data$alpha, theta_ab_newton[1])
+comparison_beta_range <- range(comparison_path_data$beta, theta_ab_newton[2])
 comparison_contour <- expand.grid(
-  alpha = seq(min(comparison_path_data$alpha),
-              max(comparison_path_data$alpha), length.out = 80),
-  beta = seq(min(comparison_path_data$beta),
-             max(comparison_path_data$beta), length.out = 80)
+  alpha = seq(comparison_alpha_range[1], comparison_alpha_range[2], length.out = 80),
+  beta = seq(comparison_beta_range[1], comparison_beta_range[2], length.out = 80)
 )
 comparison_contour$loss <- vapply(seq_len(nrow(comparison_contour)), function(i) {
   fn_ab(c(comparison_contour$alpha[i], comparison_contour$beta[i]))
@@ -1973,7 +2069,7 @@ comparison_path_plot <- ggplot() +
     color = "black"
   ) +
   geom_point(
-    data = data.frame(alpha = theta_ab_true[1], beta = theta_ab_true[2]),
+    data = data.frame(alpha = theta_ab_newton[1], beta = theta_ab_newton[2]),
     aes(x = alpha, y = beta),
     shape = 8,
     size = 3,
@@ -1981,14 +2077,14 @@ comparison_path_plot <- ggplot() +
   ) +
   labs(
     title = "Optimization paths in the alpha-beta plane",
-    subtitle = "Gamma and delta are fixed at their true values",
+    subtitle = "Gamma and delta are fixed at their true values; star = Newton estimate",
     x = expression(alpha),
     y = expression(beta),
     color = "Method"
   ) +
   theme_minimal()
 
-print(comparison_gradient_plot)
+print(comparison_parameter_mse_plot)
 print(comparison_path_plot)
 
 
