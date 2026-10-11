@@ -81,13 +81,13 @@ damped_newton <- function(theta_init, fn, gr, hess, tol = 1e-4, max_iter = 100,
 }
 
 stochastic_gradient_descent <- function(theta_init, x, y, batch_size = 200,
-                                         gamma_0 = 0.5, K = 2500, a = 1,
-                                         max_epochs = 500,
-                                         cb = NULL) {
+                                        gamma_0 = 0.5, K = 2500, a = 1,
+                                        max_epochs = 500,
+                                        cb = NULL) {
   theta <- theta_init
   n <- length(y)
   step <- 0
-  if (!is.null(cb)) cb() # Record initial theta before shuffling or updates.
+  if (!is.null(cb)) cb() # Record initial theta
 
   for (epoch in seq_len(max_epochs)) {
     shuffled_indices <- sample.int(n)
@@ -98,12 +98,7 @@ stochastic_gradient_descent <- function(theta_init, x, y, batch_size = 200,
       batch_indices <- shuffled_indices[
         start:min(start + batch_size - 1L, n)
       ]
-      batch_grad <- numeric(length(theta))
-
-      for (i in batch_indices) {
-        batch_grad <- batch_grad + grad_i(theta, x[i], y[i])
-      }
-      batch_grad <- batch_grad / length(batch_indices)
+      batch_grad <- gradient_func(theta, x[batch_indices], y[batch_indices])
 
       theta <- theta - learning_rate * batch_grad
     }
@@ -118,12 +113,9 @@ dose_response <- function(x, theta) {
   gamma <- theta[3]
   delta <- theta[4]
 
-  p <- plogis(-beta * (log(x) - alpha))
-
+  p <- plogis(-beta * log(x) + alpha)
   gamma + (delta - gamma) * p
 }
-
-set.seed(123)
 
 theta_true <- c(
   alpha = 2.5,
@@ -132,96 +124,78 @@ theta_true <- c(
   delta = 4.0
 )
 
-# 3. Observation-level loss: 1/2 * residual^2
-loss_i <- function(theta, x, y) {
+log_grid <- seq(1, 5, length.out = 15)
+set.seed(123)
+x <- exp(sample(log_grid, 2500, replace = TRUE))
+set.seed(123)
+y <- dose_response(x, theta_true) +
+  rnorm(2500, mean = 0, sd = 0.25)
+
+loss_func <- function(theta, x, y) {
   residual <- y - dose_response(x, theta)
-  0.5 * residual^2
+  sum(residual^2) / (2 * length(y))
 }
 
-# 4. Gradient of one observation's loss
-grad_i <- function(theta, x, y) {
-  alpha <- theta[1]
-  beta  <- theta[2]
-  gamma <- theta[3]
-  delta <- theta[4]
+gradient_func <- function(theta, x, y) {
+  alpha <- theta[[1]]
+  beta  <- theta[[2]]
+  gamma <- theta[[3]]
+  delta <- theta[[4]]
 
   lx <- log(x)
-  p <- plogis(-beta * (lx - alpha)) # as plogis is the logistic function so plogis(z) = 1 / (1 + exp(-z))
+  p <- plogis(alpha - beta * lx)
   q <- p * (1 - p)
 
-  fit <- gamma + (delta - gamma) * p
-  residual <- y - fit
+  residual <- y - (gamma + (delta - gamma) * p)
+  rq <- residual * q
 
-  df <- c(
-    (delta - gamma) * beta * q,
-    -(delta - gamma) * (lx - alpha) * q,
-    1 - p,
-    p
-  )
-
-  -residual * df
+  -c(
+    (delta - gamma) * sum(rq),
+    -(delta - gamma) * sum(rq * lx),
+    sum(residual * (1 - p)),
+    sum(residual * p)
+  ) / length(y)
 }
 
-full_loss <- function(theta, x, y) {
-  mean(vapply(
-    seq_along(y),
-    function(i) loss_i(theta, x[i], y[i]),
-    numeric(1)
-  ))
-}
+hess_full <- function(theta, x, y) {
+  alpha <- theta[[1]]
+  beta  <- theta[[2]]
+  gamma <- theta[[3]]
+  delta <- theta[[4]]
 
-full_gradient <- function(theta, x, y) {
-  g <- numeric(4)
-
-  for (i in seq_along(y)) {
-    g <- g + grad_i(theta, x[i], y[i])
-  }
-
-  g / length(y)
-}
-
-hess_i <- function(theta, x, y) {
-  alpha <- theta[1]
-  beta  <- theta[2]
-  gamma <- theta[3]
-  delta <- theta[4]
-
-  u <- log(x) - alpha
-  p <- plogis(-beta * u)
+  lx <- log(x)
+  p <- plogis(alpha - beta * lx)
   q <- p * (1 - p)
   q_prime <- q * (1 - 2 * p)
 
-  residual <- y - dose_response(x, theta)
-  df <- c(
-    (delta - gamma) * beta * q,
-    -(delta - gamma) * u * q,
+  residual <- y - (gamma + (delta - gamma) * p)
+  # Each row contains the dose-response gradient for one observation.
+  J <- cbind(
+    (delta - gamma) * q,
+    -(delta - gamma) * lx * q,
     1 - p,
     p
   )
 
-  hess_f <- matrix(0, nrow = 4, ncol = 4)
-  hess_f[1, 1] <- (delta - gamma) * q_prime * beta^2
-  hess_f[1, 2] <- hess_f[2, 1] <-
-    (delta - gamma) * (q - beta * u * q_prime)
-  hess_f[2, 2] <- (delta - gamma) * u^2 * q_prime
-  hess_f[1, 3] <- hess_f[3, 1] <- -beta * q
-  hess_f[1, 4] <- hess_f[4, 1] <- beta * q
-  hess_f[2, 3] <- hess_f[3, 2] <- u * q
-  hess_f[2, 4] <- hess_f[4, 2] <- -u * q
+  # Sum of residual_i * Hessian(f_i), required for the exact loss Hessian.
+  curvature <- residual * (delta - gamma) * q_prime
+  rq <- residual * q
+  correction <- matrix(0, nrow = 4, ncol = 4)
+  correction[1, 1] <- sum(curvature)
+  correction[1, 2] <- correction[2, 1] <- -sum(lx * curvature)
+  correction[2, 2] <- sum(lx^2 * curvature)
+  correction[1, 3] <- correction[3, 1] <- -sum(rq)
+  correction[1, 4] <- correction[4, 1] <- sum(rq)
+  correction[2, 3] <- correction[3, 2] <- sum(lx * rq)
+  correction[2, 4] <- correction[4, 2] <- -sum(lx * rq)
 
-  tcrossprod(df) - residual * hess_f
+  # Hessian of sum(residual^2) / (2 * n).
+  (crossprod(J) - correction) / length(y)
 }
 
-full_hessian <- function(theta, x, y) {
-  H <- matrix(0, nrow = 4, ncol = 4)
-
-  for (i in seq_along(y)) {
-    H <- H + hess_i(theta, x[i], y[i])
-  }
-
-  H / length(y)
-}
-
+fn <- function(theta) loss_func(theta, x, y)
+gr <- function(theta) gradient_func(theta, x, y)
+hess <- function(theta) hess_full(theta, x, y)
 
 # 6. Gradient Descent
 library(CSwR)
@@ -234,8 +208,8 @@ compare_optimizers <- function(theta_init, N, sigma, ...) {
   y <- dose_response(x, theta_true) +
     rnorm(N, mean = 0, sd = sigma)
 
-  fn <- function(theta) full_loss(theta, x, y)
-  gr <- function(theta) full_gradient(theta, x, y)
+  fn <- function(theta) loss_func(theta, x, y)
+  gr <- function(theta) gradient_func(theta, x, y)
   hess <- function(theta) full_hessian(theta, x, y)
 
   theta_ref <- damped_newton(
