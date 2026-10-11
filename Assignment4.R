@@ -1724,6 +1724,9 @@ print(mini_batch_loss_plot)
 
 
 
+
+
+
 # Compare gradient descent, damped Newton, and SGD while optimizing only
 # alpha and beta. Gamma and delta stay fixed at their true values.
 theta_ab_start <- c(alpha = 2.0, beta = 1.0)
