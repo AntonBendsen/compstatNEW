@@ -37,7 +37,7 @@ theta_true <- c(
   delta = 4.0
 )
 
-N <- 200
+N <- 5000
 sigma <- 0.25
 
 # 15 grid points on the log-dose scale
@@ -644,8 +644,8 @@ print(sgd_seed_trajectory_plot)
 # Compare trajectories from five different starting values using the same
 # random seed and hyperparameters.
 starting_values <- data.frame(
-  alpha = c(1.5, 2.0, 2.0, 3.0, 3.5),
-  beta = c(0.5, 1.0, 2.0, 1.0, 2.0)
+  alpha = c(1.5, 2.0, 2.0, 3.0, 3.5,0),
+  beta = c(0.5, 1.0, 2.0, 1.0, 2.0,0)
 )
 starting_values$start <- paste0(
   "(", starting_values$alpha, ", ", starting_values$beta, ")"
@@ -1123,10 +1123,10 @@ result_gd <- gradient_descent(
 # SGD
 result_sgd <- sgd(
   x, y, theta_start,
-  lr0 = 0.001,
+  lr0 = 0.005,
   max_epochs = 2000,
-  a = 0.6,
-  K = 10000,
+  a = 0.85,
+  K = 2500,
   seed = 1,
   cb = sgd_tracer$tracer
 )
@@ -1369,6 +1369,363 @@ path_plot <- ggplot() +
 print(path_plot)
 
 }
+
+
+
+# Compare ordinary SGD with mini-batch SGD for the two-parameter model.
+comparison_lr0 <- 0.005
+comparison_a <- 1
+comparison_K <- 2500
+comparison_epochs <- 200
+mini_batch_sizes <- c(10, 50, 250, 1000, 2500)
+
+gradient_ab <- function(theta_ab, x_batch, y_batch) {
+  alpha <- theta_ab[1]
+  beta <- theta_ab[2]
+  log_x <- log(x_batch)
+  p <- plogis(-beta * (log_x - alpha))
+  q <- p * (1 - p)
+  fit <- theta_true["gamma"] +
+    (theta_true["delta"] - theta_true["gamma"]) * p
+  residual <- y_batch - fit
+  d_alpha <- (theta_true["delta"] - theta_true["gamma"]) * beta * q
+  d_beta <- -(theta_true["delta"] - theta_true["gamma"]) *
+    (log_x - alpha) * q
+
+  c(
+    alpha = mean(-residual * d_alpha),
+    beta = mean(-residual * d_beta)
+  )
+}
+
+loss_ab <- function(theta_ab) {
+  theta <- c(
+    alpha = theta_ab[1],
+    beta = theta_ab[2],
+    gamma = theta_true["gamma"],
+    delta = theta_true["delta"]
+  )
+  mean(0.5 * (y - dose_response(x, theta))^2)
+}
+
+mini_batch_sgd_two_parameters <- function(x, y, theta_ab, batch_size,
+                                          lr0, max_epochs, a, K, seed = 1) {
+  set.seed(seed)
+  n <- length(y)
+  batches_per_epoch <- ceiling(n / batch_size)
+  max_updates <- max_epochs * batches_per_epoch
+  theta <- theta_ab
+  trajectory <- matrix(NA_real_, nrow = max_updates + 1, ncol = 2)
+  colnames(trajectory) <- c("alpha", "beta")
+  trajectory[1, ] <- theta
+  elapsed_time <- numeric(max_epochs)
+  gradient_norm <- numeric(max_epochs)
+  objective <- numeric(max_epochs)
+  start_time <- proc.time()[["elapsed"]]
+  update <- 0
+
+  for (epoch in seq_len(max_epochs)) {
+    indices <- sample.int(n)
+
+    for (first in seq.int(1, n, by = batch_size)) {
+      batch_indices <- indices[first:min(first + batch_size - 1L, n)]
+      update <- update + 1
+      learning_rate <- lr0 / (1 + update^a / K)
+      batch_gradient <- gradient_ab(
+        theta,
+        x[batch_indices],
+        y[batch_indices]
+      )
+      theta <- theta - learning_rate * batch_gradient
+      trajectory[update + 1, ] <- theta
+    }
+
+    gradient_norm[epoch] <- sqrt(sum(gradient_ab(theta, x, y)^2))
+    objective[epoch] <- loss_ab(theta)
+    elapsed_time[epoch] <- proc.time()[["elapsed"]] - start_time
+  }
+
+  list(
+    theta = theta,
+    trajectory = trajectory[seq_len(update + 1), , drop = FALSE],
+    elapsed_time = elapsed_time,
+    gradient_norm = gradient_norm,
+    objective = objective,
+    epochs = max_epochs,
+    final_loss = objective[max_epochs],
+    final_gradient_norm = gradient_norm[max_epochs]
+  )
+}
+
+mini_batch_results <- lapply(mini_batch_sizes, function(batch_size) {
+  mini_batch_sgd_two_parameters(
+    x = x,
+    y = y,
+    theta_ab = theta_ab_start,
+    batch_size = batch_size,
+    lr0 = comparison_lr0,
+    max_epochs = comparison_epochs,
+    a = comparison_a,
+    K = comparison_K,
+    seed = 1
+  )
+})
+names(mini_batch_results) <- paste("Batch", mini_batch_sizes)
+
+sgd_reference <- sgd_experiments[[which(learning_rates == comparison_lr0)]]
+sgd_expected_rows <- comparison_epochs * length(y) + 1L
+sgd_history_is_current <-
+  nrow(sgd_reference$trajectory) == sgd_expected_rows &&
+  length(sgd_reference$elapsed_time) == comparison_epochs &&
+  length(sgd_reference$objective) == comparison_epochs
+
+if (!sgd_history_is_current) {
+  sgd_timing <- system.time(sgd_reference <- sgd_two_parameters(
+    x = x,
+    y = y,
+    theta_ab = theta_ab_start,
+    gamma_fixed = theta_true["gamma"],
+    delta_fixed = theta_true["delta"],
+    theta_ab_true = theta_true[c("alpha", "beta")],
+    lr0 = comparison_lr0,
+    max_epochs = comparison_epochs,
+    a = comparison_a,
+    K = comparison_K,
+    seed = 1
+  ))
+  sgd_reference$runtime_seconds <- unname(sgd_timing[["elapsed"]])
+}
+
+sgd_epoch_rows <- seq_len(comparison_epochs) * length(y) + 1L
+sgd_gradient_norm <- vapply(sgd_epoch_rows, function(row) {
+  sqrt(sum(gradient_ab(sgd_reference$trajectory[row, ], x, y)^2))
+}, numeric(1))
+
+mini_batch_summary <- bind_rows(lapply(seq_along(mini_batch_results), function(i) {
+  result <- mini_batch_results[[i]]
+  data.frame(
+    method = names(mini_batch_results)[i],
+    batch_size = mini_batch_sizes[i],
+    epochs = result$epochs,
+    elapsed_seconds = tail(result$elapsed_time, 1),
+    final_loss = result$final_loss,
+    final_gradient_norm = result$final_gradient_norm
+  )
+}))
+sgd_summary <- data.frame(
+  method = "Ordinary SGD",
+  batch_size = 1L,
+  epochs = sgd_reference$epochs,
+  elapsed_seconds = sgd_reference$runtime_seconds,
+  final_loss = sgd_reference$final_loss,
+  final_gradient_norm = tail(sgd_gradient_norm, 1)
+)
+print(bind_rows(sgd_summary, mini_batch_summary))
+
+path_keep <- function(trajectory, max_points = 1500) {
+  unique(round(seq(
+    from = 1,
+    to = nrow(trajectory),
+    length.out = min(nrow(trajectory), max_points)
+  )))
+}
+
+comparison_paths <- bind_rows(
+  lapply(seq_along(mini_batch_results), function(i) {
+    result <- mini_batch_results[[i]]
+    keep <- path_keep(result$trajectory)
+    data.frame(
+      alpha = result$trajectory[keep, 1],
+      beta = result$trajectory[keep, 2],
+      method = names(mini_batch_results)[i]
+    )
+  }),
+  list({
+    keep <- path_keep(sgd_reference$trajectory)
+    data.frame(
+      alpha = sgd_reference$trajectory[keep, 1],
+      beta = sgd_reference$trajectory[keep, 2],
+      method = "Ordinary SGD"
+    )
+  })
+)
+comparison_paths$method <- factor(
+  comparison_paths$method,
+  levels = c("Ordinary SGD", names(mini_batch_results))
+)
+
+contour_alpha <- range(comparison_paths$alpha, theta_true["alpha"])
+contour_beta <- range(comparison_paths$beta, theta_true["beta"])
+contour_grid <- expand.grid(
+  alpha = seq(contour_alpha[1], contour_alpha[2], length.out = 80),
+  beta = seq(contour_beta[1], contour_beta[2], length.out = 80)
+)
+contour_grid$loss <- vapply(seq_len(nrow(contour_grid)), function(i) {
+  loss_ab(c(contour_grid$alpha[i], contour_grid$beta[i]))
+}, numeric(1))
+
+mini_batch_contour_plot <- ggplot() +
+  geom_contour(
+    data = contour_grid,
+    aes(x = alpha, y = beta, z = loss),
+    color = "grey75"
+  ) +
+  geom_path(
+    data = comparison_paths,
+    aes(x = alpha, y = beta, color = method, group = method),
+    linewidth = 0.7,
+    alpha = 0.9
+  ) +
+  geom_point(
+    data = data.frame(alpha = theta_true["alpha"], beta = theta_true["beta"]),
+    aes(x = alpha, y = beta),
+    shape = 8,
+    size = 3,
+    color = "black"
+  ) +
+  facet_wrap(~method, ncol = 3) +
+  labs(
+    title = "SGD and mini-batch SGD paths",
+    subtitle = paste0(
+      "a = ", comparison_a,
+      ", K = ", comparison_K,
+      ", lr0 = ", comparison_lr0,
+      "; star = true parameters"
+    ),
+    x = expression(alpha),
+    y = expression(beta),
+    color = "Method"
+  ) +
+  theme_minimal() +
+  theme(legend.position = "none")
+
+theta_ab_true <- unname(theta_true[c("alpha", "beta")])
+initial_parameter_error <- sqrt(sum((theta_ab_start - theta_ab_true)^2))
+
+parameter_error_comparison <- bind_rows(
+  data.frame(
+    elapsed_time = c(0, sgd_reference$elapsed_time[seq_len(comparison_epochs)]),
+    parameter_error = c(
+      initial_parameter_error,
+      sqrt(rowSums(
+        (sgd_reference$trajectory[sgd_epoch_rows, 1:2, drop = FALSE] -
+           matrix(theta_ab_true, nrow = comparison_epochs, ncol = 2,
+                  byrow = TRUE))^2
+      ))
+    ),
+    epoch = 0:comparison_epochs,
+    method = "Ordinary SGD"
+  ),
+  bind_rows(lapply(seq_along(mini_batch_results), function(i) {
+    result <- mini_batch_results[[i]]
+    updates_per_epoch <- ceiling(length(y) / mini_batch_sizes[i])
+    epoch_rows <- seq_len(comparison_epochs) * updates_per_epoch + 1L
+    data.frame(
+      elapsed_time = c(0, result$elapsed_time),
+      parameter_error = c(
+        initial_parameter_error,
+        sqrt(rowSums(
+          (result$trajectory[epoch_rows, 1:2, drop = FALSE] -
+             matrix(theta_ab_true, nrow = comparison_epochs, ncol = 2,
+                    byrow = TRUE))^2
+        ))
+      ),
+      epoch = 0:comparison_epochs,
+      method = names(mini_batch_results)[i]
+    )
+  }))
+) %>%
+  filter(parameter_error > 0, is.finite(parameter_error))
+
+mini_batch_parameter_error_plot <- ggplot(
+  parameter_error_comparison,
+  aes(x = elapsed_time, y = parameter_error, color = method)
+) +
+  geom_line(linewidth = 0.8) +
+  geom_point(size = 1.2, alpha = 0.7) +
+  scale_x_continuous(trans = scales::pseudo_log_trans(sigma = 0.1)) +
+  scale_y_log10() +
+  labs(
+    title = "Distance to true parameters over time",
+    subtitle = paste0(
+      "a = ", comparison_a,
+      ", K = ", comparison_K,
+      ", lr0 = ", comparison_lr0
+    ),
+    x = "Elapsed time (seconds)",
+    y = expression(sqrt((hat(alpha) - alpha[true])^2 +
+                          (hat(beta) - beta[true])^2)),
+    color = "Method"
+  ) +
+  theme_minimal()
+
+early_parameter_error_plot <- ggplot(
+  filter(parameter_error_comparison, epoch <= 20),
+  aes(x = epoch, y = parameter_error, color = method)
+) +
+  geom_line(linewidth = 0.8) +
+  geom_point(size = 1.6) +
+  scale_y_log10() +
+  scale_x_continuous(breaks = seq(0, 20, by = 2)) +
+  labs(
+    title = "Distance to true parameters: first 20 epochs",
+    x = "Epoch",
+    y = expression(sqrt((hat(alpha) - alpha[true])^2 +
+                          (hat(beta) - beta[true])^2)),
+    color = "Method"
+  ) +
+  theme_minimal()
+
+loss_comparison <- bind_rows(
+  data.frame(
+    elapsed_time = c(0, sgd_reference$elapsed_time[seq_len(comparison_epochs)]),
+    loss = c(
+      loss_ab(theta_ab_start),
+      sgd_reference$objective[seq_len(comparison_epochs)]
+    ),
+    method = "Ordinary SGD"
+  ),
+  bind_rows(lapply(seq_along(mini_batch_results), function(i) {
+    result <- mini_batch_results[[i]]
+    data.frame(
+      elapsed_time = c(0, result$elapsed_time),
+      loss = c(loss_ab(theta_ab_start), result$objective),
+      method = names(mini_batch_results)[i]
+    )
+  }))
+)
+
+mini_batch_loss_plot <- ggplot(
+  loss_comparison,
+  aes(x = elapsed_time, y = loss, color = method)
+) +
+  geom_line(linewidth = 0.8) +
+  scale_y_log10() +
+  labs(
+    title = "Full-data loss over time",
+    subtitle = paste0(
+      "a = ", comparison_a,
+      ", K = ", comparison_K,
+      ", lr0 = ", comparison_lr0
+    ),
+    x = "Elapsed time (seconds)",
+    y = "Mean squared-error objective",
+    color = "Method"
+  ) +
+  theme_minimal()
+
+print(mini_batch_contour_plot)
+print(mini_batch_parameter_error_plot)
+print(early_parameter_error_plot)
+print(mini_batch_loss_plot)
+
+
+
+
+
+
+
+
 
 # Compare gradient descent, damped Newton, and SGD while optimizing only
 # alpha and beta. Gamma and delta stay fixed at their true values.
@@ -1633,4 +1990,162 @@ comparison_path_plot <- ggplot() +
 
 print(comparison_gradient_plot)
 print(comparison_path_plot)
+
+
+
+
+
+
+
+
+# Four parameter SGD:
+
+
+
+sgd <- function(x, y, theta, lr0 = 0.005,
+                max_epochs = 200, a = 0.85, K = 2500,
+                tol = 1e-4, seed = 1, cb = NULL) {
+  set.seed(seed)
+  N <- length(y)
+  history <- numeric(max_epochs)
+  step <- 0
+  trajectory <- matrix(
+    NA_real_,
+    nrow = max_epochs * N + 1,
+    ncol = length(theta)
+  )
+  trajectory[1, ] <- theta
+  time_history <- numeric(max_epochs * N + 1)
+  start_time <- proc.time()[["elapsed"]]
+  gradient_norm_history <- numeric(max_epochs * N)
+  gradient_time_history <- numeric(max_epochs * N)
+  convergence_gradient_history <- numeric(max_epochs)
+  convergence_time_history <- numeric(max_epochs)
+  epochs_run <- 0
+  converged <- FALSE
+  full_gradient_norm <- Inf
+
+  for (epoch in seq_len(max_epochs)) {
+    # N random draws WITH replacement per epoch
+    for (j in seq_len(N)) {
+      i <- sample.int(N, 1)
+      step <- step + 1
+
+      # Robbins-Monro style decreasing learning rate
+      lr <- lr0 / (1 + step / K)^a
+
+      g <- grad_i(theta, x[i], y[i])
+      grad_norm_sq <- sum(g^2)
+      gradient_norm_history[step] <- sqrt(grad_norm_sq)
+
+      if (!is.null(cb)) {
+        cb()
+      }
+      gradient_time_history[step] <- proc.time()[["elapsed"]] - start_time
+
+      theta <- theta - lr * g
+
+      if (any(!is.finite(theta))) {
+        stop("SGD diverged. Try a smaller lr0.")
+      }
+
+      trajectory[step + 1, ] <- theta
+      time_history[step + 1] <- proc.time()[["elapsed"]] - start_time
+    }
+
+    history[epoch] <- full_loss(theta, x, y)
+    epochs_run <- epoch
+    full_gradient_norm <- sqrt(sum(full_gradient(theta, x, y)^2))
+    convergence_gradient_history[epoch] <- full_gradient_norm
+    convergence_time_history[epoch] <- proc.time()[["elapsed"]] - start_time
+
+    if (full_gradient_norm < tol) {
+      converged <- TRUE
+      break
+    }
+  }
+
+  if (!converged) {
+    warning(
+      "SGD did not reach the gradient-norm tolerance before max_epochs."
+    )
+  }
+
+  list(
+    theta = theta,
+    loss = full_loss(theta, x, y),
+    history = history[seq_len(epochs_run)],
+    trajectory = trajectory[seq_len(step + 1), , drop = FALSE],
+    time_history = time_history[seq_len(step + 1)],
+    gradient_norm_history = gradient_norm_history[seq_len(step)],
+    gradient_time_history = gradient_time_history[seq_len(step)],
+    convergence_gradient_history =
+      convergence_gradient_history[seq_len(epochs_run)],
+    convergence_time_history = convergence_time_history[seq_len(epochs_run)],
+    epochs = epochs_run,
+    full_gradient_norm = full_gradient_norm,
+    converged = converged
+  )
+}
+
+theta_start_4p <- c(alpha = 2.0, beta = 1.0, gamma = 1.0, delta = 3.0)
+result_sgd_4p <- sgd(
+  x = x,
+  y = y,
+  theta = theta_start_4p,
+  lr0 = 0.005,
+  max_epochs = 2000,
+  a = 0.85,
+  K = 2500,
+  seed = 1
+)
+
+# Plot each parameter at the end of each epoch against elapsed time.
+epoch_end_rows <- unique(c(
+  seq.int(1, nrow(result_sgd_4p$trajectory), by = length(y)),
+  nrow(result_sgd_4p$trajectory)
+))
+sgd_parameter_history <- as.data.frame(
+  result_sgd_4p$trajectory[epoch_end_rows, , drop = FALSE]
+)
+names(sgd_parameter_history) <- names(theta_true)
+sgd_parameter_history$elapsed_time <-
+  result_sgd_4p$time_history[epoch_end_rows]
+sgd_parameter_history$epoch <- (epoch_end_rows - 1) / length(y)
+sgd_parameter_history <- sgd_parameter_history %>%
+  pivot_longer(
+    cols = all_of(names(theta_true)),
+    names_to = "parameter",
+    values_to = "estimate"
+  ) %>%
+  mutate(
+    parameter = factor(parameter, levels = names(theta_true)),
+    true_value = unname(theta_true[as.character(parameter)])
+  )
+
+sgd_parameter_convergence_plot <- ggplot(
+  sgd_parameter_history,
+  aes(x = elapsed_time, y = estimate)
+) +
+  geom_hline(
+    aes(yintercept = true_value),
+    color = "firebrick",
+    linetype = "dashed",
+    linewidth = 0.7
+  ) +
+  geom_line(color = "steelblue", linewidth = 0.8) +
+  facet_wrap(~parameter, scales = "free_y", ncol = 2) +
+  labs(
+    title = "Four-parameter SGD convergence",
+    subtitle = "Epoch-end estimates; dashed lines show the data-generating values",
+    x = "Elapsed time (seconds)",
+    y = "Parameter estimate"
+  ) +
+  theme_minimal()
+
+print(sgd_parameter_convergence_plot)
+
+
+
+
 
