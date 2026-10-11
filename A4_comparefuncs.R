@@ -82,15 +82,19 @@ damped_newton <- function(theta_init, fn, gr, hess, tol = 1e-3, max_iter = 100,
 }
 
 stochastic_gradient_descent <- function(theta_init, x, y, batch_size = 200,
-                                         learning_rate = 0.5, max_epochs = 1000,
+                                         gamma_0 = 0.5, K = 2500, a = 1,
+                                         max_epochs = 1000,
                                          cb = NULL) {
   theta <- theta_init
   n <- length(y)
+  step <- 0
 
   for (epoch in seq_len(max_epochs)) {
     shuffled_indices <- sample.int(n)
 
     for (start in seq.int(1, n, by = batch_size)) {
+      step <- step + 1
+      learning_rate <- gamma_0 * K / (K + step^a)
       batch_indices <- shuffled_indices[
         start:min(start + batch_size - 1L, n)
       ]
@@ -246,7 +250,7 @@ gradient_descent(c(2.2, 1.7, 0.3, 4.7), fn, gr, cb = gd_tracer$tracer)
 dn_tracer <- tracer(c("theta", "grad_norm"), Delta = 0)
 damped_newton(c(2.2, 1.7, 0.3, 4.7), fn, gr, hess, cb = dn_tracer$tracer)
 sgd_tracer <- tracer(c("theta"), Delta = 0)
-stochastic_gradient_descent(c(2.2, 1.7, 0.3, 4.7), x, y, cb = sgd_tracer$tracer)
+stochastic_gradient_descent(c(2.2, 1.7, 0.3, 4.7), x, y, gamma_0 = 0.2, cb = sgd_tracer$tracer)
 
 gd_summary <- summary(gd_tracer)
 dn_summary <- summary(dn_tracer)
