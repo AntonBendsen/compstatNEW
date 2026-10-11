@@ -1,0 +1,83 @@
+---
+title: "Assignment 4B - Stochastic Optimization"
+subtitle: "Log-Logistic Dose-Response Curves"
+format: revealjs
+execute:
+  echo: false
+  warning: false
+  message: false
+---
+
+## Simulated data
+
+
+
+```{r}
+
+library(tidyverse)
+library(dplyr)
+library(CSwR)
+
+# 1. Model
+dose_response <- function(x, theta) {
+  alpha <- theta[1]
+  beta  <- theta[2]
+  gamma <- theta[3]
+  delta <- theta[4]
+
+  p <- plogis(-beta * (log(x) - alpha))
+
+  gamma + (delta - gamma) * p
+}
+
+# 2. Simulate data
+set.seed(123)
+
+theta_true <- c(
+  alpha = 2.5,
+  beta  = 1.4,
+  gamma = 0.5,
+  delta = 4.0
+)
+
+N <- 5000
+sigma <- 0.25
+
+# 15 grid points on the log-dose scale
+log_grid <- seq(1, 5, length.out = 15)
+x <- exp(sample(log_grid, N, replace = TRUE))
+
+y <- dose_response(x, theta_true) +
+  rnorm(N, mean = 0, sd = sigma)
+
+
+#data generating curve:
+
+dose_grid <- exp(seq(min(log(x)), max(log(x)), length.out = 300))
+data_generating_curve <- data.frame(
+  dose = dose_grid,
+  response = dose_response(dose_grid, theta_true)
+)
+
+simulated_data_plot <- ggplot(data.frame(dose = x, response = y),
+                              aes(x = dose, y = response)) +
+  geom_point(alpha = 0.3, color = "grey35") +
+  geom_line(
+    data = data_generating_curve,
+    aes(x = dose, y = response),
+    color = "black",
+    linetype = "dashed",
+    linewidth = 1
+  ) +
+  scale_x_log10() +
+  labs(
+    title = "Simulated dose-response data",
+    subtitle = "Dashed line is the data-generating curve",
+    x = "Dose (log scale)",
+    y = "Response"
+  ) +
+  theme_minimal()
+
+print(simulated_data_plot)
+```
+
