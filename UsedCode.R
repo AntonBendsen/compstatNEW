@@ -26,7 +26,7 @@ theta_true <- c(
   delta = 4.0
 )
 
-N <- 1000
+N <- 5000
 sigma <- 0.25
 
 # 15 grid points on the log-dose scale
