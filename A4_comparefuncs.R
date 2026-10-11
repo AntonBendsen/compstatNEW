@@ -1,6 +1,6 @@
 
 gradient_descent <- function(theta_init, fn, gr, tol = 1e-4, max_iter = 1000,
-                            gamma_0 = 2.0, c = 0.25, d = 0.75, cb = NULL) {
+                            gamma_0 = 2.0, c = 0.2, d = 0.5, cb = NULL) {
   theta <- theta_init
   gamma <- gamma_0 # Initialize gamma to avoid errors on early convergence
   if (!is.null(cb)) cb() # Record initial theta at time zero.
@@ -171,10 +171,10 @@ hess_full <- function(theta, x, y) {
   residual <- y - (gamma + (delta - gamma) * p)
   # Each row contains the dose-response gradient for one observation.
   J <- cbind(
-    (delta - gamma) * q,
-    -(delta - gamma) * lx * q,
-    1 - p,
-    p
+    alpha = (delta - gamma) * q,
+    beta = -(delta - gamma) * lx * q,
+    gamma = 1 - p,
+    delta = p
   )
 
   # Sum of residual_i * Hessian(f_i), required for the exact loss Hessian.
@@ -197,11 +197,17 @@ fn <- function(theta) loss_func(theta, x, y)
 gr <- function(theta) gradient_func(theta, x, y)
 hess <- function(theta) hess_full(theta, x, y)
 
+# gradient_descent(c(3, 2, 0, 2), fn, gr)
+# damped_newton(c(3, 2, 0, 2), fn, gr, hess)
+# stochastic_gradient_descent(c(3, 2, 0, 2), x, y)
+
 # 6. Gradient Descent
 library(CSwR)
 library(tidyverse)
 
 compare_optimizers <- function(theta_init, N, sigma, ...) {
+  # Keep the tracer's parameter columns consistent from the initial state.
+  names(theta_init) <- c("alpha", "beta", "gamma", "delta")
   # 15 grid points on the log-dose scale
   log_grid <- seq(1, 5, length.out = 15)
   x <- exp(sample(log_grid, N, replace = TRUE))
@@ -210,7 +216,7 @@ compare_optimizers <- function(theta_init, N, sigma, ...) {
 
   fn <- function(theta) loss_func(theta, x, y)
   gr <- function(theta) gradient_func(theta, x, y)
-  hess <- function(theta) full_hessian(theta, x, y)
+  hess <- function(theta) hess_full(theta, x, y)
 
   theta_ref <- damped_newton(
     theta_true, fn, gr, hess, tol = 1e-12, max_iter = 1000
@@ -279,10 +285,12 @@ set.seed(123)
 comparison_1000_1 <- compare_optimizers(
   c(2, 1, 3, 5), N = 1000, sigma = 0.25, batch_size = 1
 )
+
 set.seed(123)
 comparison_10000_1 <- compare_optimizers(
   c(2, 1, 3, 5), N = 10000, sigma = 0.25, batch_size = 1
 )
+
 set.seed(123)
 comparison_100000_1 <- compare_optimizers(
   c(2, 1, 3, 5), N = 100000, sigma = 0.25, batch_size = 1
@@ -296,10 +304,12 @@ set.seed(123)
 comparison_5000_1 <- compare_optimizers(
   c(2, 1, 3, 5), N = 5000, sigma = 0.25, batch_size = 1
 )
+
 set.seed(123)
 comparison_5000_100 <- compare_optimizers(
   c(2, 1, 3, 5), N = 5000, sigma = 0.25, batch_size = 100
 )
+
 set.seed(123)
 comparison_5000_1000 <- compare_optimizers(
   c(2, 1, 3, 5), N = 5000, sigma = 0.25, batch_size = 1000
