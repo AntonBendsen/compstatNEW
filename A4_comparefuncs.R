@@ -1,9 +1,9 @@
 
-gradient_descent <- function(theta_init, fn, gr, tol = 1e-4, max_iter = 1000,
-                            gamma_0 = 2.0, c = 0.2, d = 0.5, cb = NULL) {
+gradient_descent <- function(theta_init, fn, gr, tol = 1e-5, max_iter = 1000,
+                             gamma_0 = 1.0, c = 0.05, d = 0.5, cb = NULL) {
   theta <- theta_init
-  gamma <- gamma_0 # Initialize gamma to avoid errors on early convergence
-  if (!is.null(cb)) cb() # Record initial theta at time zero.
+  gamma <- gamma_0
+  if (!is.null(cb)) cb()
 
   for (i in seq_len(max_iter)) {
     grad <- gr(theta)
@@ -35,8 +35,8 @@ gradient_descent <- function(theta_init, fn, gr, tol = 1e-4, max_iter = 1000,
   return(list(theta = theta, gamma = gamma))
 }
 
-damped_newton <- function(theta_init, fn, gr, hess, tol = 1e-4, max_iter = 100,
-                          gamma_0 = 1.0, c = 0.25, d = 0.5, cb = NULL) {
+damped_newton <- function(theta_init, fn, gr, hess, tol = 1e-5, max_iter = 100,
+                          gamma_0 = 1.0, c = 0.05, d = 0.5, cb = NULL) {
   theta <- theta_init
   gamma <- gamma_0
   if (!is.null(cb)) cb() # Record initial theta at time zero.
@@ -80,10 +80,10 @@ damped_newton <- function(theta_init, fn, gr, hess, tol = 1e-4, max_iter = 100,
   return(list(theta = theta, gamma = gamma))
 }
 
-stochastic_gradient_descent <- function(theta_init, x, y, batch_size = 200,
-                                        gamma_0 = 0.5, K = 2500, a = 1,
-                                        max_epochs = 500,
-                                        cb = NULL) {
+sgd <- function(theta_init, x, y, grad,
+                gamma_0 = 0.5, K = 2500, a = 1,
+                batch_size = 200, max_epochs = 500,
+                cb = NULL) {
   theta <- theta_init
   n <- length(y)
   step <- 0
@@ -98,7 +98,7 @@ stochastic_gradient_descent <- function(theta_init, x, y, batch_size = 200,
       batch_indices <- shuffled_indices[
         start:min(start + batch_size - 1L, n)
       ]
-      batch_grad <- gradient_func(theta, x[batch_indices], y[batch_indices])
+      batch_grad <- grad(theta, x[batch_indices], y[batch_indices])
 
       theta <- theta - learning_rate * batch_grad
     }
@@ -124,12 +124,14 @@ theta_true <- c(
   delta = 4.0
 )
 
+N <- 5000
+sd = 0.25
 log_grid <- seq(1, 5, length.out = 15)
 set.seed(123)
-x <- exp(sample(log_grid, 2500, replace = TRUE))
+x <- exp(sample(log_grid, N, replace = TRUE))
 set.seed(123)
 y <- dose_response(x, theta_true) +
-  rnorm(2500, mean = 0, sd = 0.25)
+  rnorm(N, mean = 0, sd = sd)
 
 loss_func <- function(theta, x, y) {
   residual <- y - dose_response(x, theta)
@@ -197,15 +199,22 @@ fn <- function(theta) loss_func(theta, x, y)
 gr <- function(theta) gradient_func(theta, x, y)
 hess <- function(theta) hess_full(theta, x, y)
 
-# gradient_descent(c(3, 2, 0, 2), fn, gr)
+# gradient_descent(c(2.5, 1.5, 0.3, 4), fn, gr)
 # damped_newton(c(3, 2, 0, 2), fn, gr, hess)
-# stochastic_gradient_descent(c(3, 2, 0, 2), x, y)
+# stochastic_gradient_descent(c(2.5, 1.5, 0.3, 4), x, y, gradient_func)
 
 # 6. Gradient Descent
 library(CSwR)
 library(tidyverse)
 
-compare_optimizers <- function(theta_init, N, sigma, ...) {
+compare_optimizers <- function(theta_init, N, sigma, bs_vec = 200, ...) {
+  if (!is.numeric(bs_vec) || length(bs_vec) == 0L ||
+      any(!is.finite(bs_vec)) || any(bs_vec < 1 | bs_vec != floor(bs_vec))) {
+    stop("bs_vec must be a non-empty vector of positive whole numbers.")
+  }
+  bs_vec <- unique(bs_vec)
+  sgd_labels <- paste0("SGD (batch size = ", bs_vec, ")")
+
   # Keep the tracer's parameter columns consistent from the initial state.
   names(theta_init) <- c("alpha", "beta", "gamma", "delta")
   # 15 grid points on the log-dose scale
@@ -227,10 +236,6 @@ compare_optimizers <- function(theta_init, N, sigma, ...) {
   gradient_descent(theta_init, fn, gr, cb = gd_tracer$tracer)
   dn_tracer <- tracer(c("theta"), Delta = 0)
   damped_newton(theta_init, fn, gr, hess, cb = dn_tracer$tracer)
-  sgd_tracer <- tracer(c("theta"), Delta = 0)
-  stochastic_gradient_descent(
-    theta_init, x, y, cb = sgd_tracer$tracer, ...
-  )
 
   add_loss_error <- function(summary_data) {
     summary_data %>%
@@ -243,27 +248,40 @@ compare_optimizers <- function(theta_init, N, sigma, ...) {
 
   gd_summary <- add_loss_error(summary(gd_tracer))
   dn_summary <- add_loss_error(summary(dn_tracer))
-  sgd_summary <- add_loss_error(summary(sgd_tracer))
+  sgd_summary <- bind_rows(lapply(bs_vec, function(batch_size) {
+    sgd_tracer <- tracer(c("theta"), Delta = 0)
+    stochastic_gradient_descent(
+      theta_init, x, y, gradient_func, batch_size = batch_size,
+      cb = sgd_tracer$tracer, ...
+    )
+    add_loss_error(summary(sgd_tracer)) %>%
+      mutate(
+        batch_size = batch_size,
+        algorithm = paste0("SGD (batch size = ", batch_size, ")")
+      )
+  }))
 
-  plot_data <- rbind(
+  plot_data <- bind_rows(
     transform(gd_summary, algorithm = "Gradient descent"),
     transform(dn_summary, algorithm = "Damped Newton"),
-    transform(sgd_summary, algorithm = "Stochastic gradient descent")
+    sgd_summary
+  )
+  algorithm_levels <- c("Gradient descent", "Damped Newton", sgd_labels)
+  plot_data$algorithm <- factor(plot_data$algorithm, levels = algorithm_levels)
+  algorithm_colors <- c(
+    "Gradient descent" = "black",
+    "Damped Newton" = "firebrick",
+    setNames(hcl.colors(length(bs_vec), palette = "Dark 3"), sgd_labels)
   )
 
   convergence_plot <- ggplot(
     plot_data,
     aes(x = .time, y = loss_error, color = algorithm, group = algorithm)
   ) +
-    geom_line(linewidth = 1.2) +
-    geom_point(size = 2) +
+    geom_line(linewidth = 1) +
     scale_x_log10() +
     scale_y_log10() +
-    scale_color_manual(values = c(
-      "Gradient descent" = "steelblue",
-      "Damped Newton" = "firebrick",
-      "Stochastic gradient descent" = "darkgreen"
-    )) +
+    scale_color_manual(values = algorithm_colors) +
     labs(
       x = "Time",
       y = "|H(theta) - H(theta_ref)|",
@@ -282,39 +300,31 @@ compare_optimizers <- function(theta_init, N, sigma, ...) {
 }
 
 set.seed(123)
-comparison_1000_1 <- compare_optimizers(
-  c(2, 1, 3, 5), N = 1000, sigma = 0.25, batch_size = 1
+comparison_1000 <- compare_optimizers(
+  c(2, 1, 3, 5),
+  N = 1000,
+  sigma = 0.25,
+  bs_vec = c(1, 50, 200)
 )
+
+comparison_1000$convergence_plot
 
 set.seed(123)
-comparison_10000_1 <- compare_optimizers(
-  c(2, 1, 3, 5), N = 10000, sigma = 0.25, batch_size = 1
+comparison_10000 <- compare_optimizers(
+  c(2, 1, 3, 5),
+  N = 10000,
+  sigma = 0.25,
+  bs_vec = c(1, 50, 200)
 )
+
+comparison_10000$convergence_plot
 
 set.seed(123)
-comparison_100000_1 <- compare_optimizers(
-  c(2, 1, 3, 5), N = 100000, sigma = 0.25, batch_size = 1
+comparison_100000 <- compare_optimizers(
+  c(2, 1, 3, 5),
+  N = 100000,
+  sigma = 0.25,
+  bs_vec = c(1, 50, 200)
 )
 
-comparison_1000_1$convergence_plot
-comparison_10000_1$convergence_plot
-comparison_100000_1$convergence_plot
-
-set.seed(123)
-comparison_5000_1 <- compare_optimizers(
-  c(2, 1, 3, 5), N = 5000, sigma = 0.25, batch_size = 1
-)
-
-set.seed(123)
-comparison_5000_100 <- compare_optimizers(
-  c(2, 1, 3, 5), N = 5000, sigma = 0.25, batch_size = 100
-)
-
-set.seed(123)
-comparison_5000_1000 <- compare_optimizers(
-  c(2, 1, 3, 5), N = 5000, sigma = 0.25, batch_size = 1000
-)
-
-comparison_5000_1$convergence_plot
-comparison_5000_100$convergence_plot
-comparison_5000_1000$convergence_plot
+comparison_100000$convergence_plot
