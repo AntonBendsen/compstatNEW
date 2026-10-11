@@ -1,15 +1,13 @@
 
-gradient_descent <- function(theta_init, fn, gr, tol = 1e-3, max_iter = 1000, 
-                             gamma_0 = 1.0, c = 0.1, d = 0.5, cb = NULL) {
+gradient_descent <- function(theta_init, fn, gr, tol = 1e-5, max_iter = 1000,
+                            gamma_0 = 2.0, c = 0.25, d = 0.75, cb = NULL) {
   theta <- theta_init
+  gamma <- gamma_0 # Initialize gamma to avoid errors on early convergence
+  if (!is.null(cb)) cb() # Record initial theta at time zero.
 
   for (i in seq_len(max_iter)) {
     grad <- gr(theta)
     grad_norm <- sqrt(sum(grad^2))
-
-    if (!is.null(cb)) {
-      cb() # Record the current state for later inspection.
-    }
 
     if (grad_norm <= tol) {
       message("Converged successfully after ", i, " iterations.")
@@ -19,6 +17,7 @@ gradient_descent <- function(theta_init, fn, gr, tol = 1e-3, max_iter = 1000,
     gamma <- gamma_0
     f_curr <- fn(theta)
 
+    # Backtracking line search (Armijo condition)
     while (fn(theta - gamma * grad) > f_curr - c * gamma * grad_norm^2) {
       gamma <- d * gamma
 
@@ -29,24 +28,23 @@ gradient_descent <- function(theta_init, fn, gr, tol = 1e-3, max_iter = 1000,
     }
 
     theta <- theta - gamma * grad
+    if (!is.null(cb)) cb() # Record theta after the completed update.
   }
 
   warning("Maximum number of iterations reached without full convergence.")
   return(list(theta = theta, gamma = gamma))
 }
 
-damped_newton <- function(theta_init, fn, gr, hess, tol = 1e-3, max_iter = 100, 
-                          c = 0.1, d = 0.5, cb = NULL) {
+damped_newton <- function(theta_init, fn, gr, hess, tol = 1e-5, max_iter = 100,
+                          gamma_0 = 1.0, c = 0.25, d = 0.5, cb = NULL) {
   theta <- theta_init
+  gamma <- gamma_0
+  if (!is.null(cb)) cb() # Record initial theta at time zero.
 
   for (i in seq_len(max_iter)) {
 
     grad <- gr(theta)
     grad_norm <- sqrt(sum(grad^2))
-
-    if (!is.null(cb)) {
-      cb() # Record the current state for later inspection.
-    }
 
     if (grad_norm <= tol) {
       message("Converged successfully after ", i, " iterations.")
@@ -61,7 +59,7 @@ damped_newton <- function(theta_init, fn, gr, hess, tol = 1e-3, max_iter = 100,
       v <- -grad
     }
 
-    gamma <- 1.0
+    gamma <- gamma_0 # Restart backtracking at the initial step size each iteration.
     f_curr <- fn(theta)
     directional_derivative <- sum(grad * v) 
 
@@ -75,6 +73,7 @@ damped_newton <- function(theta_init, fn, gr, hess, tol = 1e-3, max_iter = 100,
     }
 
     theta <- theta + gamma * v
+    if (!is.null(cb)) cb() # Record theta after the completed update.
   }
 
   warning("Maximum number of iterations reached without full convergence.")
@@ -88,6 +87,7 @@ stochastic_gradient_descent <- function(theta_init, x, y, batch_size = 200,
   theta <- theta_init
   n <- length(y)
   step <- 0
+  if (!is.null(cb)) cb() # Record initial theta before shuffling or updates.
 
   for (epoch in seq_len(max_epochs)) {
     shuffled_indices <- sample.int(n)
@@ -107,12 +107,8 @@ stochastic_gradient_descent <- function(theta_init, x, y, batch_size = 200,
 
       theta <- theta - learning_rate * batch_grad
     }
-
-    if (!is.null(cb)) {
-      cb()
-    }
+    if (!is.null(cb)) cb()
   }
-
   list(theta = theta, epochs = max_epochs)
 }
 
@@ -135,17 +131,6 @@ theta_true <- c(
   gamma = 0.5,
   delta = 4.0
 )
-
-N <- 5000
-sigma <- 0.25
-
-# 15 grid points on the log-dose scale
-log_grid <- seq(1, 5, length.out = 15)
-x <- exp(sample(log_grid, N, replace = TRUE))
-
-y <- dose_response(x, theta_true) +
-  rnorm(N, mean = 0, sd = sigma)
-
 
 # 3. Observation-level loss: 1/2 * residual^2
 loss_i <- function(theta, x, y) {
@@ -239,42 +224,56 @@ full_hessian <- function(theta, x, y) {
 
 
 # 6. Gradient Descent
-fn <- function(theta) full_loss(theta, x, y)
-gr <- function(theta) full_gradient(theta, x, y)
-hess <- function(theta) full_hessian(theta, x, y)
-
 library(CSwR)
-
-gd_tracer <- tracer(c("theta", "grad_norm"), Delta = 0)
-gradient_descent(c(2.2, 1.7, 0.3, 4.7), fn, gr, cb = gd_tracer$tracer)
-dn_tracer <- tracer(c("theta", "grad_norm"), Delta = 0)
-damped_newton(c(2.2, 1.7, 0.3, 4.7), fn, gr, hess, cb = dn_tracer$tracer)
-sgd_tracer <- tracer(c("theta"), Delta = 0)
-stochastic_gradient_descent(c(2.2, 1.7, 0.3, 4.7), x, y, gamma_0 = 0.2, cb = sgd_tracer$tracer)
-
-gd_summary <- summary(gd_tracer)
-dn_summary <- summary(dn_tracer)
-
 library(tidyverse)
-sgd_summary <- summary(sgd_tracer) %>%
-  rowwise() %>%
-  mutate(grad_norm = sqrt(sum(gr(c(theta.1, theta.2, theta.3, theta.4))^2))) %>%
-  ungroup()
 
-library(ggplot2)
+compare_optimizers <- function(theta_init, N, sigma, ...) {
+  # 15 grid points on the log-dose scale
+  log_grid <- seq(1, 5, length.out = 15)
+  x <- exp(sample(log_grid, N, replace = TRUE))
+  y <- dose_response(x, theta_true) +
+    rnorm(N, mean = 0, sd = sigma)
 
-head(sgd_summary)
+  fn <- function(theta) full_loss(theta, x, y)
+  gr <- function(theta) full_gradient(theta, x, y)
+  hess <- function(theta) full_hessian(theta, x, y)
 
-plot_convergence <- function(gd_summary, dn_summary, sgd_summary) {
+  theta_ref <- damped_newton(
+    theta_true, fn, gr, hess, tol = 1e-12, max_iter = 1000
+  )$theta
+  reference_loss <- fn(theta_ref)
+
+  gd_tracer <- tracer(c("theta"), Delta = 0)
+  gradient_descent(theta_init, fn, gr, cb = gd_tracer$tracer)
+  dn_tracer <- tracer(c("theta"), Delta = 0)
+  damped_newton(theta_init, fn, gr, hess, cb = dn_tracer$tracer)
+  sgd_tracer <- tracer(c("theta"), Delta = 0)
+  stochastic_gradient_descent(
+    theta_init, x, y, cb = sgd_tracer$tracer, ...
+  )
+
+  add_loss_error <- function(summary_data) {
+    summary_data %>%
+      rowwise() %>%
+      mutate(loss_error = abs(
+        fn(c_across(starts_with("theta."))) - reference_loss
+      )) %>%
+      ungroup()
+  }
+
+  gd_summary <- add_loss_error(summary(gd_tracer))
+  dn_summary <- add_loss_error(summary(dn_tracer))
+  sgd_summary <- add_loss_error(summary(sgd_tracer))
+
   plot_data <- rbind(
     transform(gd_summary, algorithm = "Gradient descent"),
     transform(dn_summary, algorithm = "Damped Newton"),
     transform(sgd_summary, algorithm = "Stochastic gradient descent")
   )
 
-  ggplot(
+  convergence_plot <- ggplot(
     plot_data,
-    aes(x = .time, y = grad_norm, color = algorithm, group = algorithm)
+    aes(x = .time, y = loss_error, color = algorithm, group = algorithm)
   ) +
     geom_line(linewidth = 1.2) +
     geom_point(size = 2) +
@@ -286,10 +285,29 @@ plot_convergence <- function(gd_summary, dn_summary, sgd_summary) {
     )) +
     labs(
       x = "Time",
-      y = "Norm of Gradient",
+      y = "|H(theta) - H(theta_ref)|",
       color = "Algorithm"
     ) +
     theme_minimal()
+
+  list(
+    gd_summary = gd_summary,
+    dn_summary = dn_summary,
+    sgd_summary = sgd_summary,
+    convergence_plot = convergence_plot,
+    theta_ref = theta_ref,
+    reference_loss = reference_loss
+  )
 }
 
-plot_convergence(gd_summary, dn_summary, sgd_summary)
+comparison_2000 <- compare_optimizers(
+  c(2, 1, 3, 5), N = 2000, sigma = 0.25, batch_size = 50
+)
+
+comparison_2000$convergence_plot
+
+comparison_10000 <- compare_optimizers(
+  c(2, 1, 3, 5), N = 10000, sigma = 0.25, batch_size = 50
+)
+
+comparison_10000$convergence_plot
