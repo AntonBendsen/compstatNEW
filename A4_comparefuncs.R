@@ -1,6 +1,3 @@
-# Refresh definitions without running the examples:
-# source("A4_load_functions.R", chdir = TRUE)
-
 gradient_descent <- function(theta_init, fn, gr, tol = 1e-4, max_iter = 1000,
                              gamma_0 = 1.0, c = 0.05, d = 0.5, cb = NULL) {
   theta <- theta_init
