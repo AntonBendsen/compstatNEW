@@ -214,6 +214,37 @@ sgd <- function(theta_init, x, y, grad, tol = 1e-4,
 :::
 :::
 
+
+
+## Finding the SGD parameters
+
+To model $\theta$ using SGD different parameters must be studied.
+
+- **Learning rate** 
+- **Different seeds**
+- **Starting points**
+- **Mini-batch size** 
+
+These will be inspected in the following. 
+
+Two problems:
+
+1. Can not visualize 4 parameters at a time. 
+   - We initially keep $\gamma,\delta$ fixed and only vary $\alpha,\beta$
+
+2. When sampling from $\theta_{\mathrm{true}} = (2.5, 1.4, 0.5, 4.0)$ these will not be the optimal parameters in the sample.
+   - We use a Damped Newton with tolerance of $10^{-12}$ to find $\hat{\theta}$
+   - Find parameters $\hat{\theta}=(2.509440, 1.405544, 0.5, 4)$
+   - These will be used at the 'true' theta in the sample.
+
+
+
+
+## Choice of a and K
+
+![Heatmap showing choice of $a$ and $K$](Pictures/HM1.png){width=80%}
+
+
 ## Optimizer comparison {.comparison-slide}
 
 - Compare **SGD**, **gradient descent (GD)**, and **damped Newton** on the same data, using the same initial parameters.

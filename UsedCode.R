@@ -11,7 +11,7 @@ dose_response <- function(x, theta) {
   gamma <- theta[3]
   delta <- theta[4]
 
-  p <- plogis(-beta * (log(x) - alpha))
+  p <- plogis(-beta * log(x) + alpha)
 
   gamma + (delta - gamma) * p
 }
@@ -83,15 +83,15 @@ grad_i <- function(theta, x, y) {
   delta <- theta[4]
 
   lx <- log(x)
-  p <- plogis(-beta * (lx - alpha)) # as plogis is the logistic function so plogis(z) = 1 / (1 + exp(-z))
+  p <- plogis(-beta * lx + alpha) # as plogis is the logistic function so plogis(z) = 1 / (1 + exp(-z))
   q <- p * (1 - p)
 
   fit <- gamma + (delta - gamma) * p
   residual <- y - fit
 
   df <- c(
-    (delta - gamma) * beta * q,
-    -(delta - gamma) * (lx - alpha) * q,
+    (delta - gamma) * q,
+    -(delta - gamma) * (lx) * q,
     1 - p,
     p
   )
@@ -119,34 +119,48 @@ full_gradient <- function(theta, x, y) {
   g / length(y)
 }
 
+
 hess_i <- function(theta, x, y) {
   alpha <- theta[1]
-  beta <- theta[2]
+  beta  <- theta[2]
   gamma <- theta[3]
   delta <- theta[4]
 
-  u <- log(x) - alpha
-  p <- plogis(-beta * u)
+  lx <- log(x)
+  A <- delta - gamma
+
+  p <- plogis(alpha - beta * lx)
   q <- p * (1 - p)
   q_prime <- q * (1 - 2 * p)
-  residual <- y - dose_response(x, theta)
 
+  fit <- gamma + A * p
+  residual <- y - fit
+
+  # Gradient of the fitted dose-response curve
   df <- c(
-    (delta - gamma) * beta * q,
-    -(delta - gamma) * u * q,
+    A * q,
+    -A * lx * q,
     1 - p,
     p
   )
-  hess_fit <- matrix(0, nrow = 4, ncol = 4)
-  hess_fit[1, 1] <- (delta - gamma) * q_prime * beta^2
-  hess_fit[1, 2] <- hess_fit[2, 1] <-
-    (delta - gamma) * (q - beta * u * q_prime)
-  hess_fit[2, 2] <- (delta - gamma) * u^2 * q_prime
-  hess_fit[1, 3] <- hess_fit[3, 1] <- -beta * q
-  hess_fit[1, 4] <- hess_fit[4, 1] <- beta * q
-  hess_fit[2, 3] <- hess_fit[3, 2] <- u * q
-  hess_fit[2, 4] <- hess_fit[4, 2] <- -u * q
 
+  # Hessian of the fitted dose-response curve
+  hess_fit <- matrix(0, nrow = 4, ncol = 4)
+
+  hess_fit[1, 1] <- A * q_prime
+
+  hess_fit[1, 2] <- hess_fit[2, 1] <-
+    -A * lx * q_prime
+
+  hess_fit[2, 2] <- A * lx^2 * q_prime
+
+  hess_fit[1, 3] <- hess_fit[3, 1] <- -q
+  hess_fit[1, 4] <- hess_fit[4, 1] <- q
+
+  hess_fit[2, 3] <- hess_fit[3, 2] <- lx * q
+  hess_fit[2, 4] <- hess_fit[4, 2] <- -lx * q
+
+  # Hessian of the observation-level loss
   tcrossprod(df) - residual * hess_fit
 }
 
@@ -258,8 +272,8 @@ damped_newton_delta <- theta_sample[4]
 
 # Explore SGD with gamma and delta fixed at their true values.
 sgd_two_parameters <- function(x, y, theta_ab, gamma_fixed, delta_fixed,
-                               lr0, max_epochs = 200, a = 1,
-                               K = 2500, theta_ab_target, seed = 1) {
+                               lr0, max_epochs = 200, a = 0.85,
+                               K = 10000, theta_ab_target, seed = 1) {
   set.seed(seed)
   N <- length(y)
   theta <- c(
@@ -305,7 +319,7 @@ sgd_two_parameters <- function(x, y, theta_ab, gamma_fixed, delta_fixed,
 }
 
 theta_ab_start <- c(alpha = 2.0, beta = 1.0)
-learning_rates <- c(0.001, 0.005, 0.01, 0.05)
+learning_rates <- c(0.001, 0.005, 0.01, 0.05, 0.1, 0.5)
 
 sgd_experiments <- lapply(learning_rates, function(rate) {
   timing <- system.time(result <- sgd_two_parameters(
