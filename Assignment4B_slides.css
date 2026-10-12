@@ -1,41 +1,37 @@
-.reveal .slides section.outline-slide,
-.reveal .slides section.explanation-slide,
-.reveal .slides section.simulation-slide,
-.reveal .slides section.comparison-slide {
+.reveal .slides section.slide:not(#title-slide) {
   top: 0 !important;
   text-align: left;
+  font-size: 23px;
 }
 
-.reveal .slides section.outline-slide > h2,
-.reveal .slides section.explanation-slide > h2,
-.reveal .slides section.simulation-slide > h2,
-.reveal .slides section.comparison-slide > h2 {
+.reveal .slides section.slide:not(#title-slide) :is(p, li, ul, ol, .math) {
+  font-size: inherit;
+}
+
+.reveal .slides section.slide:not(#title-slide) pre code {
+  font-size: 15px;
+  line-height: 1.2;
+  max-height: 540px;
+  overflow: auto;
+}
+
+.reveal .slides section.slide:not(#title-slide) > h2 {
   text-align: left;
-  margin-bottom: 0.8em;
+  font-size: 43px;
+  line-height: 1.2;
+  margin: 0 0 24px;
 }
 
-.reveal .slides section.explanation-slide {
+.reveal .slides section.slide:not(#title-slide) > h3 {
+  text-align: left;
   font-size: 28px;
-}
-
-.reveal .slides section.explanation-slide > h2 {
-  font-size: 1.65em;
+  line-height: 1.2;
+  margin: 0 0 16px;
 }
 
 .reveal .slides section.explanation-slide .math.display {
   display: block;
   margin: 1.2em 0;
-}
-
-.reveal .slides section.simulation-slide,
-.reveal .slides section.comparison-slide {
-  font-size: 26px;
-}
-
-.reveal .slides section.simulation-slide > h2,
-.reveal .slides section.comparison-slide > h2 {
-  font-size: 1.65em;
-  margin-bottom: 0.6em;
 }
 
 .reveal .slides section.simulation-slide div.sourceCode {
@@ -45,23 +41,8 @@
   padding: 12px;
 }
 
-.reveal .slides section.simulation-slide pre code {
-  font-size: 16px;
-}
-
 .reveal .slides section.comparison-slide li {
   margin-bottom: 0.7em;
-}
-
-.reveal .slides section.loss-gradient-slide {
-  top: 0 !important;
-  text-align: left;
-  font-size: 23px;
-}
-
-.reveal .slides section.loss-gradient-slide > h2 {
-  font-size: 1.65em;
-  margin-bottom: 0.6em;
 }
 
 .reveal .slides section.loss-gradient-slide .column > p {
@@ -76,31 +57,25 @@
   margin: 0.4em 0 0.8em;
 }
 
-.reveal .slides section.loss-gradient-slide pre code {
-  font-size: 14px;
-  line-height: 1.2;
-  max-height: none;
-}
-
 .reveal .slides section.loss-gradient-slide .math.display {
   display: block;
-  font-size: 0.85em;
   margin: 1.5em 0;
-}
-
-.reveal .slides section.sgd-slide {
-  top: 0 !important;
-  text-align: left;
-  font-size: 27px;
-}
-
-.reveal .slides section.sgd-slide > h2 {
-  font-size: 1.4em;
-  margin-bottom: 0.6em;
 }
 
 .reveal .slides section.sgd-slide .column > p {
   margin: 0.6em 0 1em;
+}
+
+.reveal .slides section.sgd-slide .sgd-intro {
+  width: 50%;
+}
+
+.reveal .slides section.sgd-slide .sgd-intro > p {
+  margin: 0.6em 0 1em;
+}
+
+.reveal .slides section.slide.sgd-slide:not(#title-slide) pre code {
+  max-height: 470px;
 }
 
 .reveal .slides section.sgd-slide .math.display {
@@ -116,8 +91,3 @@
   margin: 0;
 }
 
-.reveal .slides section.sgd-slide pre code {
-  font-size: 13px;
-  line-height: 1.15;
-  max-height: none;
-}
