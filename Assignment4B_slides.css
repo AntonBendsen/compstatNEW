@@ -1,0 +1,24 @@
+.reveal .slides section.outline-slide,
+.reveal .slides section.explanation-slide {
+  top: 0 !important;
+  text-align: left;
+}
+
+.reveal .slides section.outline-slide > h2,
+.reveal .slides section.explanation-slide > h2 {
+  text-align: left;
+  margin-bottom: 0.8em;
+}
+
+.reveal .slides section.explanation-slide {
+  font-size: 28px;
+}
+
+.reveal .slides section.explanation-slide > h2 {
+  font-size: 1.65em;
+}
+
+.reveal .slides section.explanation-slide .math.display {
+  display: block;
+  margin: 1.2em 0;
+}
