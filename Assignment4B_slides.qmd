@@ -1,0 +1,37 @@
+---
+title: "Assignment 4B"
+subtitle: "SGD: Log-Logistic Dose-Response Curves<br>By: *Alex, Anton & Markus*"
+format:
+  revealjs:
+    theme: simple
+    css: Assignment4B_slides.css
+    center: true
+    embed-resources: true
+---
+
+## Outline {.outline-slide}
+
+- Log-logistic dose-response model
+- Simulated data and estimation problem
+- Gradient descent, damped Newton, and SGD
+- Convergence and computation time
+- Fitted dose-response curves
+
+## Explanation of assignment {.explanation-slide}
+
+- **Assume:** $Y_i = f(x_i \mid \alpha,\beta,\gamma,\delta) + \varepsilon_i$ with $\varepsilon_i \sim \mathcal{N}(0,\sigma^2)$ i.i.d., and
+
+$$
+f(x \mid \alpha,\beta,\gamma,\delta)
+= \gamma + \frac{\delta - \gamma}{1 + \exp\{\beta\log(x) - \alpha\}},
+\qquad \theta := (\alpha,\beta,\gamma,\delta) \in \mathbb{R}^4
+$$
+
+- **Goal:** Use SGD to minimize the squared loss
+
+$$
+L(\theta) = \frac{1}{2N}\sum_{i=1}^{N}
+\left(y_i - f(x_i \mid \alpha,\beta,\gamma,\delta)\right)^2
+$$
+
+and estimate the parameter $\theta$. We set $\theta_{\mathrm{true}} = (2.5,1.4,0.5,4.0)^{\mathsf{T}}$ as a benchmark.
