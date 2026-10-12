@@ -9,7 +9,7 @@
 <link href="UsedCode_presentation_files/libs/quarto-html/quarto-syntax-highlighting-64a204ab8560d761af7679ceaba22944.css" rel="stylesheet" id="quarto-text-highlighting-styles"><meta charset="utf-8">
   <meta name="generator" content="quarto-1.10.18">
 
-  <title>Assignment 4 - Stochastic Optimization</title>
+  <title>Assignment 4B - Stochastic Optimization</title>
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, minimal-ui">
@@ -132,7 +132,7 @@
     <div class="slides">
 
 <section id="title-slide" class="quarto-title-block center">
-  <h1 class="title">Assignment 4 - Stochastic Optimization</h1>
+  <h1 class="title">Assignment 4B - Stochastic Optimization</h1>
   <p class="subtitle">Log-Logistic Dose-Response Curves</p>
 
 <div class="quarto-title-authors">
@@ -141,6 +141,10 @@
 </section>
 <section id="simulated-data" class="slide level2">
 <h2>Simulated data</h2>
+<p>Simulate <span class="math inline">\(N = 5000\)</span> dose-response observations from the four-parameter log-logistic model.</p>
+<p>Each dose is sampled from 15 grid points equally spaced on the log-dose scale between 1 and 5.</p>
+<p>The response is generated using <span class="math inline">\((\alpha, \beta, \gamma, \delta) = (2.5, 1.4, 0.5, 4.0)\)</span>, with independent Gaussian noise <span class="math inline">\(\varepsilon_i \sim N(0, 0.25^2)\)</span> added to each observation.</p>
+<p>The dashed curve shows the true data-generating mean; the points show the simulated noisy observations.</p>
 
 
 <img data-src="UsedCode_presentation_files/figure-revealjs/unnamed-chunk-1-1.png" width="960" class="r-stretch"></section>
