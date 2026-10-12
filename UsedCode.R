@@ -646,9 +646,9 @@ print(sgd_parameter_mse_plot)
 
 # Compare SGD trajectories across five random seeds with fixed hyperparameters.
 trajectory_seeds <- 1:5
-trajectory_lr0 <- 0.005
-trajectory_a <- 1
-trajectory_K <- 2500
+trajectory_lr0 <- 0.05
+trajectory_a <- 0.85
+trajectory_K <- 10000
 trajectory_epochs <- 200
 
 seed_trajectories <- lapply(trajectory_seeds, function(seed_value) {
@@ -928,8 +928,8 @@ print(sgd_start_value_trajectory_plot)
 
 # Compare ordinary SGD with mini-batch SGD for the two-parameter model.
 comparison_lr0 <- 0.005
-comparison_a <- 1
-comparison_K <- 2500
+comparison_a <- 0.85
+comparison_K <- 10000
 comparison_epochs <- 200
 mini_batch_sizes <- c(10, 50, 250, 1000, 2500)
 
