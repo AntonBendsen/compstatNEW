@@ -8,6 +8,7 @@ format:
     center: true
     embed-resources: false
     code-line-numbers: false
+    slide-level: 2
 ---
 
 ## Outline {.outline-slide}
@@ -37,7 +38,7 @@ $$
 
 and estimate the parameter $\theta$. We set $\theta_{\mathrm{true}} = (2.5,1.4,0.5,4.0)^{\mathsf{T}}$ as a benchmark.
 
-## Simulated data {.simulation-slide}
+## Implementation in R: Simulated data {.simulation-slide}
 
 ::: {.columns}
 ::: {.column width="45%"}
@@ -53,7 +54,7 @@ dose_response <- function(x, theta) {
   }
 
   sigma <- 0.25
-  N <- 10000
+  N <- 5000
 
   set.seed(123)
   log_grid <- seq(1, 5, length.out = 15)
@@ -80,17 +81,19 @@ make_slide_data_plot(N = 1000, sigma = 0.25)
 :::
 :::
 
-## Loss function and gradient {.loss-gradient-slide}
+## Implementation in R: Loss function and gradient {.loss-gradient-slide}
 
 ::: {.columns}
 ::: {.column width="52%"}
 
-**Gradient in terms of $p_i$**
+**Loss function**
 
 $$
-p_i = \frac{1}{1 + \exp\{\beta\log(x_i) - \alpha\}},
-\qquad \mathrm{res}_i = y_i - f(x_i \mid \theta).
+L(\theta) = \frac{1}{2N}\sum_{i=1}^{N}
+\left(y_i - f(x_i \mid \theta)\right)^2
 $$
+
+**Gradient in terms of $p_i = (1 + \exp\{\beta\log(x_i) - \alpha\})^{-1}$**
 
 $$
 \begin{aligned}
@@ -112,7 +115,7 @@ The components follow the order $\theta = (\alpha,\beta,\gamma,\delta)^{\mathsf 
 :::
 ::: {.column width="48%"}
 
-**Loss function**
+<p aria-hidden="true">&nbsp;</p>
 
 ```r
 loss_func <- function(theta, x, y) {
@@ -121,7 +124,7 @@ loss_func <- function(theta, x, y) {
 }
 ```
 
-**Gradient**
+<p aria-hidden="true">&nbsp;</p>
 
 ```r
 gradient_func <- function(theta, x, y) {
@@ -129,11 +132,13 @@ gradient_func <- function(theta, x, y) {
   beta  <- theta[[2]]
   gamma <- theta[[3]]
   delta <- theta[[4]]
+  
   lx <- log(x)
   p <- plogis(alpha - beta * lx)
   q <- p * (1 - p)
   residual <- y - (gamma + (delta - gamma) * p)
   rq <- residual * q
+
   -c(
     (delta - gamma) * sum(rq),
     -(delta - gamma) * sum(rq * lx),
@@ -146,12 +151,14 @@ gradient_func <- function(theta, x, y) {
 :::
 :::
 
-## Implementing SGD: {.sgd-slide}
+## Implementation in R: Stochastic Gradient Descent {.sgd-slide}
+
+::: {.sgd-intro}
+Learning rate: Robins Monro suggests
+:::
 
 ::: {.columns}
-::: {.column width="40%"}
-
-Learning rate: Robins Monro suggests
+::: {.column width="48%"}
 
 $$
 \gamma_n = \gamma_0 K / (K n^\alpha)
@@ -159,10 +166,12 @@ $$
 
 But $f$ is not even convex on $\mathbb{R}^4$ ...
 
-Checking e.g. strong convexity of $\mathbb{E}[L(\theta)]$? Probably not.
+Checking e.g. strong convexity of $\mathbb{E}[L(\theta)]$? 
+
+Probably not.
 
 :::
-::: {.column width="60%"}
+::: {.column width="52%"}
 
 ```r
 sgd <- function(theta_init, x, y, grad, tol = 1e-4,
@@ -175,15 +184,15 @@ sgd <- function(theta_init, x, y, grad, tol = 1e-4,
   if (!is.null(cb)) cb() # Record initial theta
 
   for (epoch in seq_len(max_epochs)) {
-    shuffled_indices <- sample.int(n)
+    shuffled_idx <- sample.int(n)
 
     for (start in seq.int(1, n, by = batch_size)) {
       step <- step + 1
       learning_rate <- gamma_0 * K / (K + step^a)
-      batch_indices <- shuffled_indices[
+      batch_idx <- shuffled_idx[
         start:min(start + batch_size - 1L, n)
       ]
-      batch_grad <- grad(theta, x[batch_indices], y[batch_indices])
+      batch_grad <- grad(theta, x[batch_idx], y[batch_idx])
 
       theta <- theta - learning_rate * batch_grad
     }
