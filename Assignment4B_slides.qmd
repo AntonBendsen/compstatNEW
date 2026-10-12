@@ -36,7 +36,9 @@ L(\theta) = \frac{1}{2N}\sum_{i=1}^{N}
 \left(y_i - f(x_i \mid \alpha,\beta,\gamma,\delta)\right)^2
 $$
 
-and estimate the parameter $\theta$. We set $\theta_{\mathrm{true}} = (2.5,1.4,0.5,4.0)^{\mathsf{T}}$ as a benchmark.
+and estimate the parameter $\theta$. 
+
+We set $\theta_{\mathrm{true}} = (2.5,1.4,0.5,4.0)^{\mathsf{T}}$ as a benchmark.
 
 ## Implementation in R: Simulated data {.simulation-slide}
 
