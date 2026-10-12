@@ -82,7 +82,7 @@ damped_newton <- function(theta_init, fn, gr, hess, tol = 1e-4, max_iter = 100,
   return(list(theta = theta, gamma = gamma))
 }
 
-sgd <- function(theta_init, x, y, grad,
+sgd <- function(theta_init, x, y, grad, tol = 1e-4,
                 gamma_0 = 0.5, K = 100, a = 1,
                 batch_size = 100, max_epochs = 500,
                 cb = NULL) {
@@ -105,6 +105,13 @@ sgd <- function(theta_init, x, y, grad,
       theta <- theta - learning_rate * batch_grad
     }
     if (!is.null(cb)) cb()
+
+    full_grad <- grad(theta, x, y)
+
+    if (sqrt(sum(full_grad^2)) < tol) {
+      message("Converged after ", epoch, " epochs.")
+      return(list(theta = theta))
+    }
   }
   list(theta = theta)
 }
@@ -125,6 +132,15 @@ theta_true <- c(
   gamma = 0.5,
   delta = 4.0
 )
+
+N <- 5000
+sigma <- 0.0
+
+log_grid <- seq(1, 5, length.out = 15)
+x <- exp(sample(log_grid, N, replace = TRUE))
+
+y <- dose_response(x, theta_true) +
+  rnorm(N, mean = 0, sd = sigma)
 
 loss_func <- function(theta, x, y) {
   residual <- y - dose_response(x, theta)
@@ -195,13 +211,19 @@ hess <- function(theta) hess_full(theta, x, y)
 library(CSwR)
 library(tidyverse)
 
-compare_optimizers <- function(theta_init, N, sigma, bs_vec = 200, ...) {
-  if (!is.numeric(bs_vec) || length(bs_vec) == 0L ||
-      any(!is.finite(bs_vec)) || any(bs_vec < 1 | bs_vec != floor(bs_vec))) {
-    stop("bs_vec must be a non-empty vector of positive whole numbers.")
+compare_optimizers <- function(theta_init, N, sigma, variable_vec = 200,
+                               variable = "batch_size", ...) {
+  variable <- match.arg(variable, c("batch_size", "gamma_0"))
+  if (!is.numeric(variable_vec) || length(variable_vec) == 0L ||
+      any(!is.finite(variable_vec)) || any(variable_vec <= 0)) {
+    stop("variable_vec must be a non-empty vector of positive finite numbers.")
   }
-  bs_vec <- unique(bs_vec)
-  sgd_labels <- paste0("SGD (batch size = ", bs_vec, ")")
+  if (variable == "batch_size" && any(variable_vec != floor(variable_vec))) {
+    stop("variable_vec must contain whole numbers when varying batch_size.")
+  }
+  variable_vec <- unique(variable_vec)
+  variable_label <- if (variable == "batch_size") "batch size" else "gamma_0"
+  sgd_labels <- paste0("SGD (", variable_label, " = ", variable_vec, ")")
 
   # Keep the tracer's parameter columns consistent from the initial state.
   names(theta_init) <- c("alpha", "beta", "gamma", "delta")
@@ -221,9 +243,9 @@ compare_optimizers <- function(theta_init, N, sigma, bs_vec = 200, ...) {
   reference_loss <- fn(theta_ref)
 
   gd_tracer <- tracer(c("theta"), Delta = 0)
-  gradient_descent(theta_init, fn, gr, cb = gd_tracer$tracer)
+  gd_fit <- gradient_descent(theta_init, fn, gr, cb = gd_tracer$tracer)
   dn_tracer <- tracer(c("theta"), Delta = 0)
-  damped_newton(theta_init, fn, gr, hess, cb = dn_tracer$tracer)
+  dn_fit <- damped_newton(theta_init, fn, gr, hess, cb = dn_tracer$tracer)
 
   add_loss_error <- function(summary_data) {
     summary_data %>%
@@ -236,18 +258,20 @@ compare_optimizers <- function(theta_init, N, sigma, bs_vec = 200, ...) {
 
   gd_summary <- add_loss_error(summary(gd_tracer))
   dn_summary <- add_loss_error(summary(dn_tracer))
-  sgd_summary <- bind_rows(lapply(bs_vec, function(batch_size) {
+  sgd_results <- lapply(variable_vec, function(value) {
     sgd_tracer <- tracer(c("theta"), Delta = 0)
-    sgd(
-      theta_init, x, y, gradient_func, batch_size = batch_size,
+    sgd_args <- list(
+      theta_init = theta_init, x = x, y = y, grad = gradient_func,
       cb = sgd_tracer$tracer, ...
     )
-    add_loss_error(summary(sgd_tracer)) %>%
-      mutate(
-        batch_size = batch_size,
-        algorithm = paste0("SGD (batch size = ", batch_size, ")")
-      )
-  }))
+    sgd_args[[variable]] <- value
+    fit <- do.call(sgd, sgd_args)
+    result <- add_loss_error(summary(sgd_tracer))
+    result[[variable]] <- value
+    result$algorithm <- paste0("SGD (", variable_label, " = ", value, ")")
+    list(theta = fit$theta, summary = result)
+  })
+  sgd_summary <- bind_rows(lapply(sgd_results, function(result) result$summary))
 
   plot_data <- bind_rows(
     transform(gd_summary, algorithm = "Gradient descent"),
@@ -257,9 +281,9 @@ compare_optimizers <- function(theta_init, N, sigma, bs_vec = 200, ...) {
   algorithm_levels <- c("Gradient descent", "Damped Newton", sgd_labels)
   plot_data$algorithm <- factor(plot_data$algorithm, levels = algorithm_levels)
   algorithm_colors <- c(
-    "Gradient descent" = "black",
+    "Gradient descent" = "#e0cc11",
     "Damped Newton" = "firebrick",
-    setNames(hcl.colors(length(bs_vec), palette = "Dark 3"), sgd_labels)
+    setNames(hcl.colors(length(variable_vec), palette = "Dark 3"), sgd_labels)
   )
 
   convergence_plot <- ggplot(
@@ -277,26 +301,65 @@ compare_optimizers <- function(theta_init, N, sigma, bs_vec = 200, ...) {
     ) +
     theme_minimal()
 
+  final_thetas <- c(
+    list("Gradient descent" = gd_fit$theta, "Damped Newton" = dn_fit$theta),
+    setNames(lapply(sgd_results, function(result) result$theta), sgd_labels),
+    list("Data generating curve" = theta_true)
+  )
+  x_grid <- exp(seq(min(log_grid), max(log_grid), length.out = 300))
+  curve_data <- bind_rows(lapply(names(final_thetas), function(algorithm) {
+    data.frame(
+      x = x_grid,
+      response = dose_response(x_grid, final_thetas[[algorithm]]),
+      algorithm = algorithm
+    )
+  }))
+  curve_levels <- c(algorithm_levels, "Data generating curve")
+  curve_data$algorithm <- factor(curve_data$algorithm, levels = curve_levels)
+  curve_plot <- ggplot(
+    curve_data, aes(x = x, y = response, color = algorithm, linetype = algorithm)
+  ) +
+    geom_point(
+      data = data.frame(x = x, y = y), aes(x = x, y = y),
+      inherit.aes = FALSE, color = "grey40", alpha = 0.25, size = 1.5
+    ) +
+    geom_line(linewidth = 1.5) +
+    scale_x_log10(breaks = scales::breaks_log(n = 5),
+                  labels = scales::label_number()) +
+    scale_color_manual(values = c(algorithm_colors, "Data generating curve" = "black")) +
+    scale_linetype_manual(values = setNames(
+      c(rep("solid", length(algorithm_levels)), "longdash"), curve_levels
+    )) +
+    labs(x = "Dose (log scale)", y = "Response", color = "Curve",
+         linetype = "Curve") +
+    theme_minimal(base_size = 13) +
+    theme(axis.title = element_text(color = "black"))
+
   list(
     gd_summary = gd_summary,
     dn_summary = dn_summary,
     sgd_summary = sgd_summary,
     convergence_plot = convergence_plot,
+    curve_plot = curve_plot,
     data = data.frame(x = x, y = y),
     theta_ref = theta_ref,
     reference_loss = reference_loss
   )
 }
 
-compare_optimizers_contour <- function(theta_init, N, sigma, bs_vec = 200,
-                                       dims = c(1, 2), ...) {
+compare_optimizers_contour <- function(theta_init, N, sigma, variable_vec = 200,
+                                       dims = c(1, 2), variable = "batch_size", ...) {
   if (!is.numeric(theta_init) || length(theta_init) != 4L ||
       any(!is.finite(theta_init))) {
     stop("theta_init must contain four finite numeric parameters.")
   }
-  if (!is.numeric(bs_vec) || length(bs_vec) == 0L ||
-      any(!is.finite(bs_vec)) || any(bs_vec < 1 | bs_vec != floor(bs_vec))) {
-    stop("bs_vec must be a non-empty vector of positive whole numbers.")
+  variable <- match.arg(variable, c("batch_size", "gamma_0"))
+  if (!is.numeric(variable_vec) || length(variable_vec) == 0L ||
+      any(!is.finite(variable_vec)) || any(variable_vec <= 0)) {
+    stop("variable_vec must be a non-empty vector of positive finite numbers.")
+  }
+  if (variable == "batch_size" && any(variable_vec != floor(variable_vec))) {
+    stop("variable_vec must contain whole numbers when varying batch_size.")
   }
   if (!is.numeric(dims) || length(dims) != 2L ||
       any(!is.finite(dims)) || any(dims != floor(dims)) ||
@@ -306,10 +369,11 @@ compare_optimizers_contour <- function(theta_init, N, sigma, bs_vec = 200,
 
   parameter_names <- c("alpha", "beta", "gamma", "delta")
   names(theta_init) <- parameter_names
-  bs_vec <- unique(bs_vec)
+  variable_vec <- unique(variable_vec)
   axis_names <- parameter_names[dims]
   fixed_dims <- setdiff(seq_len(4), dims)
-  sgd_labels <- paste0("SGD (batch size = ", bs_vec, ")")
+  variable_label <- if (variable == "batch_size") "batch size" else "gamma_0"
+  sgd_labels <- paste0("SGD (", variable_label, " = ", variable_vec, ")")
 
   # The contours and every optimizer use these same observations.
   log_grid <- seq(1, 5, length.out = 15)
@@ -332,15 +396,17 @@ compare_optimizers_contour <- function(theta_init, N, sigma, bs_vec = 200,
   damped_newton(theta_init, fn, gr, hess, cb = dn_tracer$tracer)
   dn_summary <- summary(dn_tracer)
 
-  sgd_summary <- dplyr::bind_rows(lapply(bs_vec, function(batch_size) {
+  sgd_summary <- dplyr::bind_rows(lapply(variable_vec, function(value) {
     sgd_tracer <- CSwR::tracer("theta", Delta = 0)
-    sgd(
-      theta_init, x, y, gradient_func, batch_size = batch_size,
+    sgd_args <- list(
+      theta_init = theta_init, x = x, y = y, grad = gradient_func,
       cb = sgd_tracer$tracer, ...
     )
+    sgd_args[[variable]] <- value
+    do.call(sgd, sgd_args)
     result <- summary(sgd_tracer)
-    result$batch_size <- batch_size
-    result$algorithm <- paste0("SGD (batch size = ", batch_size, ")")
+    result[[variable]] <- value
+    result$algorithm <- paste0("SGD (", variable_label, " = ", value, ")")
     result
   }))
 
@@ -383,7 +449,7 @@ compare_optimizers_contour <- function(theta_init, N, sigma, bs_vec = 200,
   algorithm_colors <- c(
     "Gradient descent" = "black",
     "Damped Newton" = "firebrick",
-    setNames(hcl.colors(length(bs_vec), palette = "Dark 3"), sgd_labels)
+    setNames(hcl.colors(length(variable_vec), palette = "Dark 3"), sgd_labels)
   )
   fixed_values <- paste(sprintf(
     "%s = %.3g", parameter_names[fixed_dims], theta_ref[fixed_dims]
@@ -437,54 +503,57 @@ compare_optimizers_contour <- function(theta_init, N, sigma, bs_vec = 200,
   )
 }
 
-# set.seed(123)
-# comparison_1000 <- compare_optimizers(
-#   c(2, 1, 3, 5),
-#   N = 1000,
-#   sigma = 0.25,
-#   bs_vec = c(1, 50, 200)
-# )
+set.seed(123)
+comparison_1000 <- compare_optimizers(
+  c(3, 2, 2, 5),
+  N = 1000,
+  sigma = 0.25,
+  variable_vec = c(1, 50, 200)
+)
 
-# comparison_1000$convergence_plot
+comparison_1000$convergence_plot
+comparison_1000$curve_plot
 
-# set.seed(123)
-# comparison_10000 <- compare_optimizers(
-#   c(2, 1, 3, 5),
-#   N = 10000,
-#   sigma = 0.25,
-#   bs_vec = c(1, 50, 200),
-# )
+set.seed(123)
+comparison_10000 <- compare_optimizers(
+  c(3, 2, 2, 5),
+  N = 10000,
+  sigma = 0.25,
+  variable_vec = c(1, 50, 200)
+)
 
-# comparison_10000$convergence_plot
+comparison_10000$convergence_plot
+comparison_10000$curve_plot
 
-# set.seed(123)
-# comparison_100000 <- compare_optimizers(
-#   c(2, 1, 3, 5),
-#   N = 100000,
-#   sigma = 0.25,
-#   bs_vec = c(1, 50, 200)
-# )
+set.seed(123)
+comparison_100000 <- compare_optimizers(
+  c(3, 2, 2, 5),
+  N = 100000,
+  sigma = 0.25,
+  variable_vec = c(1, 50, 200)
+)
 
-# comparison_100000$convergence_plot
-
+comparison_100000$convergence_plot
+comparison_100000$curve_plot
 
 # #NEWTON AND GD GET STUCK:
 
-# set.seed(123)
-# comparison_10000_p2 <- compare_optimizers(
-#   c(1, 4, 0, 2),
-#   N = 10000,
-#   sigma = 0.25,
-#   bs_vec = c(1, 50, 200),
-# )
-
-# comparison_1000_p2$convergence_plot
-
-paths_10000 <- compare_optimizers_contour(
-  c(2, 1, 3, 5),
+set.seed(123)
+comparison_10000_p2 <- compare_optimizers(
+  c(1, 4, 0, 2),
   N = 10000,
   sigma = 0.25,
-  bs_vec = c(1, 50, 200),
+  variable_vec = c(1, 50, 200),
+)
+
+comparison_10000_p2$convergence_plot
+comparison_10000_p2$curve_plot
+
+paths_10000 <- compare_optimizers_contour(
+  c(3, 2, 2, 5),
+  N = 1000,
+  sigma = 0.25,
+  variable_vec = c(1, 50, 200),
   dims = c(1, 2)
 )
 
@@ -494,7 +563,7 @@ paths_10000_p2 <- compare_optimizers_contour(
   c(1, 4, 0, 2),
   N = 10000,
   sigma = 0.25,
-  bs_vec = c(1, 50, 200),
+  variable_vec = c(1, 50, 200),
   dims = c(1, 2)
 )
 
