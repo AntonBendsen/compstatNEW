@@ -1,2 +1,9 @@
 project:
   type: default
+  output-dir: _slides
+  render:
+    - Assignment4B_slides.qmd
+  resources:
+    - A4B_slideplots.R
+  preview:
+    watch-inputs: true
