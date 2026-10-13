@@ -91,3 +91,30 @@
   margin: 0;
 }
 
+.reveal .slides section.performance-slide .quarto-layout-panel {
+  margin: 0;
+}
+
+.reveal .slides section.performance-slide .sgd-parameters {
+  color: #777777;
+  font-size: 17px;
+  margin-top: 12px;
+}
+
+.reveal .slides section.slide.performance-grid-slide > h2 {
+  margin-bottom: 12px;
+}
+
+.reveal .slides section.performance-grid-slide > p {
+  margin: 0.3em 0 0.4em;
+}
+
+.reveal .slides section.performance-grid-slide .sgd-parameters {
+  margin-top: 6px;
+  font-size: 15px;
+}
+
+.reveal .slides section.performance-grid-slide .sgd-parameters p {
+  margin: 0.3em 0;
+}
+
