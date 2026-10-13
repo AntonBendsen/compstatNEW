@@ -6,8 +6,8 @@
 <script src="Assignment4B_slides_files/libs/quarto-html/tippy.umd.min.js"></script>
 <link href="Assignment4B_slides_files/libs/quarto-html/tippy.css" rel="stylesheet">
 <link href="Assignment4B_slides_files/libs/quarto-html/light-border.css" rel="stylesheet">
-<link href="Assignment4B_slides_files/libs/quarto-html/quarto-syntax-highlighting-64a204ab8560d761af7679ceaba22944.css" rel="stylesheet" id="quarto-text-highlighting-styles"><meta charset="utf-8">
-  <meta name="generator" content="quarto-1.10.18">
+<link href="Assignment4B_slides_files/libs/quarto-html/quarto-syntax-highlighting-845c23b38eaddc0f92fda52bfe77a8c8.css" rel="stylesheet" id="quarto-text-highlighting-styles"><meta charset="utf-8">
+  <meta name="generator" content="quarto-1.9.36">
 
   <title>Assignment 4B</title>
   <meta name="apple-mobile-web-app-capable" content="yes">
@@ -19,13 +19,10 @@
     /* Default styles provided by pandoc.
     ** See https://pandoc.org/MANUAL.html#variables-for-html for config info.
     */
+    code{white-space: pre-wrap;}
     span.smallcaps{font-variant: small-caps;}
-    div.columns{display: flex; gap: 1.5em;}
-    div.column{flex: auto;}
-    @media screen {
-    div.columns{gap: min(4vw, 1.5em);}
-    div.column{overflow-x: auto;}
-    }
+    div.columns{display: flex; gap: min(4vw, 1.5em);}
+    div.column{flex: auto; overflow-x: auto;}
     div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
     ul.task-list{list-style: none;}
     ul.task-list li input[type="checkbox"] {
@@ -342,7 +339,7 @@ p_i
 <p>Probably not.</p>
 </div><div class="column" style="width:52%;">
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb4"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb4-1"><a href="" aria-hidden="true" tabindex="-1"></a>sgd <span class="ot">&lt;-</span> <span class="cf">function</span>(theta_init, x, y, grad, <span class="at">tol =</span> <span class="fl">1e-4</span>,</span>
-<span id="cb4-2"><a href="" aria-hidden="true" tabindex="-1"></a>                <span class="at">gamma_0 =</span> <span class="fl">0.5</span>, <span class="at">K =</span> <span class="dv">100</span>, <span class="at">a =</span> <span class="dv">1</span>,</span>
+<span id="cb4-2"><a href="" aria-hidden="true" tabindex="-1"></a>                <span class="at">gamma_0 =</span> <span class="fl">0.5</span>, <span class="at">K =</span> <span class="dv">100</span>, <span class="at">a =</span> <span class="fl">0.9</span>,</span>
 <span id="cb4-3"><a href="" aria-hidden="true" tabindex="-1"></a>                <span class="at">batch_size =</span> <span class="dv">100</span>, <span class="at">max_epochs =</span> <span class="dv">500</span>,</span>
 <span id="cb4-4"><a href="" aria-hidden="true" tabindex="-1"></a>                <span class="at">cb =</span> <span class="cn">NULL</span>) {</span>
 <span id="cb4-5"><a href="" aria-hidden="true" tabindex="-1"></a>  theta <span class="ot">&lt;-</span> theta_init</span>
@@ -400,10 +397,10 @@ p_i
 </ul></li>
 </ol>
 </section>
-<section id="choise-of-a-and-k" class="slide level2 center">
-<h2>Choise of a and K</h2>
-<p>##<img data-src="Pictures/HM1.png" style="width:80.0%" alt="Heatmap showing choice of a and K"></p>
-</section>
+<section id="choice-of-a-and-k" class="slide level2 center">
+<h2>Choice of a and K</h2>
+
+<img data-src="Pictures/HM1.png" style="width:80.0%" class="r-stretch quarto-figure-center"><p class="caption">Heatmap showing choice of <span class="math inline">\(a\)</span> and <span class="math inline">\(K\)</span></p></section>
 <section id="optimizer-comparison" class="slide level2 comparison-slide center">
 <h2>Optimizer comparison</h2>
 <ul>
@@ -412,6 +409,24 @@ p_i
 <li>Both stop when <span class="math inline">\(\|\nabla L(\theta)\|_2 \leq 10^{-4}\)</span>, or when their iteration limit is reached.</li>
 <li>Compare sample sizes <span class="math inline">\(N = 1{,}000\)</span>, <span class="math inline">\(10{,}000\)</span>, and <span class="math inline">\(100{,}000\)</span>; set the random seed to 123 for reproducibility.</li>
 </ul>
+</section>
+<section id="performance-comparison-good-start-guess" class="slide level2 performance-slide performance-grid-slide center">
+<h2>Performance comparison: Good start guess</h2>
+<p>True parameters: <span class="math inline">\(\theta_{\mathrm{true}} = (2.5, 1.4, 0.5, 4.0)^{\mathsf T}\)</span>; starting guess: <span class="math inline">\(\theta_0 = (3, 2, 2, 5)^{\mathsf T}\)</span>.</p>
+
+<img data-src="Assignment4B_slides_files/figure-revealjs/performance-grid-good-1.png" class="quarto-figure quarto-figure-center r-stretch" style="width:100.0%" alt="Six plots for the good starting guess: convergence above fitted curves, with sample sizes 1,000, 10,000, and 100,000 in columns. Fits use the best recorded theta before 0.001, 0.01, and 0.1 seconds, respectively."><div class="sgd-parameters">
+<p>Curves use the recorded <span class="math inline">\(\theta\)</span> minimizing <span class="math inline">\(|L(\theta) - L(\theta_{\mathrm{ref}})|\)</span> strictly before the indicated time.</p>
+<p>SGD parameters: <span class="math inline">\(\gamma_0 = 0.5\)</span>, <span class="math inline">\(K = 100\)</span>, <span class="math inline">\(a = 0.9\)</span>, maximum epochs <span class="math inline">\(= 500\)</span>, tolerance <span class="math inline">\(= 0.0001\)</span>.</p>
+</div>
+</section>
+<section id="performance-comparison-alternative" class="slide level2 performance-slide performance-grid-slide center">
+<h2>Performance comparison: Poor start guess</h2>
+<p>True parameters: <span class="math inline">\(\theta_{\mathrm{true}} = (2.5, 1.4, 0.5, 4.0)^{\mathsf T}\)</span>; starting guess: <span class="math inline">\(\theta_0 = (1, 4, 0, 2)^{\mathsf T}\)</span>.</p>
+
+<img data-src="Assignment4B_slides_files/figure-revealjs/performance-grid-poor-1.png" class="quarto-figure quarto-figure-center r-stretch" style="width:100.0%" alt="Six plots for the poor starting guess: convergence above fitted curves, with sample sizes 1,000, 10,000, and 100,000 in columns. Fits use the best recorded theta before 0.001, 0.01, and 0.1 seconds, respectively."><div class="sgd-parameters">
+<p>Curves use the recorded <span class="math inline">\(\theta\)</span> minimizing <span class="math inline">\(|L(\theta) - L(\theta_{\mathrm{ref}})|\)</span> strictly before the indicated time.</p>
+<p>SGD parameters: <span class="math inline">\(\gamma_0 = 0.5\)</span>, <span class="math inline">\(K = 100\)</span>, <span class="math inline">\(a = 0.9\)</span>, maximum epochs <span class="math inline">\(= 500\)</span>, tolerance <span class="math inline">\(= 0.0001\)</span>.</p>
+</div>
 
 </section>
     </div>
@@ -630,42 +645,80 @@ p_i
       });
     </script>
     
+
     <script>
+
       // htmlwidgets need to know to resize themselves when slides are shown/hidden.
+
       // Fire the "slideenter" event (handled by htmlwidgets.js) when the current
+
       // slide changes (different for each slide format).
+
       (function () {
+
         // dispatch for htmlwidgets
+
         function fireSlideEnter() {
+
           const event = window.document.createEvent("Event");
+
           event.initEvent("slideenter", true, true);
+
           window.document.dispatchEvent(event);
+
         }
+
+    
 
         function fireSlideChanged(previousSlide, currentSlide) {
+
           fireSlideEnter();
 
+    
+
           // dispatch for shiny
+
           if (window.jQuery) {
+
             if (previousSlide) {
+
               window.jQuery(previousSlide).trigger("hidden");
+
             }
+
             if (currentSlide) {
+
               window.jQuery(currentSlide).trigger("shown");
+
             }
+
           }
+
         }
+
+    
 
         // hookup for slidy
+
         if (window.w3c_slidy) {
+
           window.w3c_slidy.add_observer(function (slide_num) {
+
             // slide_num starts at position 1
+
             fireSlideChanged(null, w3c_slidy.slides[slide_num - 1]);
+
           });
+
         }
 
+    
+
       })();
+
     </script>
+
+    
 
     <script id="quarto-html-after-body" type="application/javascript">
       window.document.addEventListener("DOMContentLoaded", function (event) {
