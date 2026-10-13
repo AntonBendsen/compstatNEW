@@ -136,14 +136,15 @@ sgd_update_traced <- function(theta_init, x, y, grad, tol = 1e-4,
       theta <- theta - learning_rate * batch_grad
 
       if (!is.null(cb)) cb()
-
-      full_grad <- grad(theta, x, y)
-
-      if (sqrt(sum(full_grad^2)) < tol) {
-        message("Converged after ", epoch, " epochs.")
-        return(list(theta = theta))
-      }
     }
+
+    full_grad <- grad(theta, x, y)
+
+    if (sqrt(sum(full_grad^2)) < tol) {
+      message("Converged after ", epoch, " epochs.")
+      return(list(theta = theta))
+    }
+
   }
   list(theta = theta)
 }

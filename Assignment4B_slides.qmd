@@ -261,8 +261,8 @@ True parameters: $\theta_{\mathrm{true}} = (2.5, 1.4, 0.5, 4.0)^{\mathsf T}$; st
 #| include: false
 #| cache: true
 #| cache.lazy: false
-#| cache.extra: !expr tools::md5sum(c("A4_comparefuncs.R", "A4_performanceplots"))
-source("A4_performanceplots")
+#| cache.extra: !expr tools::md5sum(c("A4_comparefuncs.R", "A4_performanceplots.R"))
+source("A4_performanceplots.R")
 ```
 
 ```{r}
@@ -284,6 +284,10 @@ make_performance_grid <- function(comparisons) {
   convergence_plots <- lapply(seq_along(comparisons), function(i) {
     comparisons[[i]]$convergence_plot +
       ggplot2::labs(title = paste("N =", sample_sizes[i]), x = "Time (s)") +
+      ggplot2::geom_vline(
+        xintercept = time_limits[i], color = "grey35", linetype = "dashed",
+        linewidth = 0.6, show.legend = FALSE
+      ) +
       ggplot2::guides(color = "none")
   })
   curve_plots <- lapply(seq_along(early_comparisons), function(i) {
@@ -341,4 +345,45 @@ make_performance_grid(list(
 Curves use the recorded $\theta$ minimizing $|L(\theta) - L(\theta_{\mathrm{ref}})|$ strictly before the indicated time.
 
 SGD parameters: $\gamma_0 = `r formals(sgd)$gamma_0`$, $K = `r formals(sgd)$K`$, $a = `r formals(sgd)$a`$, maximum epochs $= `r formals(sgd)$max_epochs`$, tolerance $= `r sprintf("%g", formals(sgd)$tol)`$.
+:::
+
+## Performance comparison: Update tracing {.performance-slide .performance-grid-slide}
+
+$N = 1{,}000$; true parameters: $\theta_{\mathrm{true}} = (2.5, 1.4, 0.5, 4.0)^{\mathsf T}$.
+
+```{r}
+#| label: update-traced-comparisons
+#| include: false
+#| cache: true
+#| cache.lazy: false
+#| cache.extra: !expr tools::md5sum(c("A4_comparefuncs.R", "4B_updatetracedperformanceplots.R"))
+source("4B_updatetracedperformanceplots.R")
+```
+
+```{r}
+#| label: performance-grid-update-traced
+#| cache: false
+#| echo: false
+#| warning: false
+#| message: false
+#| fig-width: 13.2
+#| fig-height: 5.6
+#| out-width: "100%"
+#| fig-align: center
+#| fig-alt: "Update-traced optimization with N = 1,000 in a 2 by 2 grid. The good starting guess is on the left and the poor starting guess on the right. Convergence is above fitted curves using each algorithm's best recorded theta strictly before 5 milliseconds."
+update_traced_marked_grid <- update_traced_performance_grid
+for (i in 1:2) {
+  update_traced_marked_grid[[i]] <- update_traced_marked_grid[[i]] +
+    ggplot2::geom_vline(
+      xintercept = 0.005, color = "grey35", linetype = "dashed",
+      linewidth = 0.6, show.legend = FALSE
+    )
+}
+update_traced_marked_grid
+```
+
+::: {.sgd-parameters}
+SGD is traced after every update. Curves use the recorded $\theta$ minimizing $|L(\theta) - L(\theta_{\mathrm{ref}})|$ strictly before $5\,\mathrm{ms}$.
+
+SGD parameters: $\gamma_0 = `r formals(sgd_update_traced)$gamma_0`$, $K = `r formals(sgd_update_traced)$K`$, $a = `r formals(sgd_update_traced)$a`$, maximum epochs $= `r formals(sgd_update_traced)$max_epochs`$, tolerance $= `r sprintf("%g", formals(sgd_update_traced)$tol)`$; batch sizes: $1, 50, 250$.
 :::

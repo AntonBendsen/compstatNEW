@@ -68,15 +68,26 @@ comparison_100000_p2 <- compare_optimizers(
 # comparison_100000_p2$convergence_plot
 # comparison_100000_p2$curve_plot
 
-# set.seed(123)
-# comparison_1000_ut <- compare_optimizers_ut(
-#   c(1, 4, 0, 2),
-#   N = 1000,
-#   sigma = 0.25,
-#   variable_vec = c(1, 50, 250)
-# )
 
-# comparison_1000_ut$convergence_plot
+set.seed(123)
+comparison_1000_ut <- compare_optimizers_ut(
+  c(3, 2, 2, 5),
+  N = 1000,
+  sigma = 0.25,
+  variable_vec = c(1, 50, 250)
+)
+
+comparison_1000_ut$convergence_plot
+
+set.seed(123)
+comparison_1000_p2_ut <- compare_optimizers_ut(
+  c(1, 4, 0, 2),
+  N = 1000,
+  sigma = 0.25,
+  variable_vec = c(1, 50, 250)
+)
+
+comparison_1000_p2_ut$convergence_plot
 
 # Best recorded loss error for each algorithm strictly before the time limit.
 comparison_10000_early <- best_curves_before_time(

@@ -427,6 +427,15 @@ p_i
 <p>Curves use the recorded <span class="math inline">\(\theta\)</span> minimizing <span class="math inline">\(|L(\theta) - L(\theta_{\mathrm{ref}})|\)</span> strictly before the indicated time.</p>
 <p>SGD parameters: <span class="math inline">\(\gamma_0 = 0.5\)</span>, <span class="math inline">\(K = 100\)</span>, <span class="math inline">\(a = 0.9\)</span>, maximum epochs <span class="math inline">\(= 500\)</span>, tolerance <span class="math inline">\(= 0.0001\)</span>.</p>
 </div>
+</section>
+<section id="performance-comparison-update-tracing" class="slide level2 performance-slide performance-grid-slide center">
+<h2>Performance comparison: Update tracing</h2>
+<p><span class="math inline">\(N = 1{,}000\)</span>; true parameters: <span class="math inline">\(\theta_{\mathrm{true}} = (2.5, 1.4, 0.5, 4.0)^{\mathsf T}\)</span>.</p>
+
+<img data-src="Assignment4B_slides_files/figure-revealjs/performance-grid-update-traced-1.png" class="quarto-figure quarto-figure-center r-stretch" style="width:100.0%" alt="Update-traced optimization with N = 1,000 in a 2 by 2 grid. The good starting guess is on the left and the poor starting guess on the right. Convergence is above fitted curves using each algorithm's best recorded theta strictly before 5 milliseconds."><div class="sgd-parameters">
+<p>SGD is traced after every update. Curves use the recorded <span class="math inline">\(\theta\)</span> minimizing <span class="math inline">\(|L(\theta) - L(\theta_{\mathrm{ref}})|\)</span> strictly before <span class="math inline">\(5\,\mathrm{ms}\)</span>.</p>
+<p>SGD parameters: <span class="math inline">\(\gamma_0 = 0.5\)</span>, <span class="math inline">\(K = 100\)</span>, <span class="math inline">\(a = 0.9\)</span>, maximum epochs <span class="math inline">\(= 500\)</span>, tolerance <span class="math inline">\(= 0.0001\)</span>; batch sizes: <span class="math inline">\(1, 50, 250\)</span>.</p>
+</div>
 
 </section>
     </div>
