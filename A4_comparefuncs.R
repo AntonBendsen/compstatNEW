@@ -80,7 +80,7 @@ damped_newton <- function(theta_init, fn, gr, hess, tol = 1e-4, max_iter = 100,
 }
 
 sgd <- function(theta_init, x, y, grad, tol = 1e-4,
-                gamma_0 = 0.5, K = 100, a = 1,
+                gamma_0 = 0.5, K = 100, a = 0.9,
                 batch_size = 100, max_epochs = 500,
                 cb = NULL) {
   theta <- theta_init
@@ -113,6 +113,41 @@ sgd <- function(theta_init, x, y, grad, tol = 1e-4,
   list(theta = theta)
 }
 
+sgd_update_traced <- function(theta_init, x, y, grad, tol = 1e-4,
+                gamma_0 = 0.5, K = 100, a = 0.9,
+                batch_size = 100, max_epochs = 500,
+                cb = NULL) {
+  theta <- theta_init
+  n <- length(y)
+  step <- 0
+  if (!is.null(cb)) cb() # Record initial theta
+
+  for (epoch in seq_len(max_epochs)) {
+    shuffled_indices <- sample.int(n)
+
+    for (start in seq.int(1, n, by = batch_size)) {
+      step <- step + 1
+      learning_rate <- gamma_0 * K / (K + step^a)
+      batch_indices <- shuffled_indices[
+        start:min(start + batch_size - 1L, n)
+      ]
+      batch_grad <- grad(theta, x[batch_indices], y[batch_indices])
+
+      theta <- theta - learning_rate * batch_grad
+
+      if (!is.null(cb)) cb()
+
+      full_grad <- grad(theta, x, y)
+
+      if (sqrt(sum(full_grad^2)) < tol) {
+        message("Converged after ", epoch, " epochs.")
+        return(list(theta = theta))
+      }
+    }
+  }
+  list(theta = theta)
+}
+
 dose_response <- function(x, theta) {
   alpha <- theta[1]
   beta  <- theta[2]
@@ -130,14 +165,14 @@ theta_true <- c(
   delta = 4.0
 )
 
-N <- 5000
-sigma <- 0.0
+# N <- 5000
+# sigma <- 0.0
 
-log_grid <- seq(1, 5, length.out = 15)
-x <- exp(sample(log_grid, N, replace = TRUE))
+# log_grid <- seq(1, 5, length.out = 15)
+# x <- exp(sample(log_grid, N, replace = TRUE))
 
-y <- dose_response(x, theta_true) +
-  rnorm(N, mean = 0, sd = sigma)
+# y <- dose_response(x, theta_true) +
+#   rnorm(N, mean = 0, sd = sigma)
 
 loss_func <- function(theta, x, y) {
   residual <- y - dose_response(x, theta)
@@ -287,7 +322,7 @@ compare_optimizers <- function(theta_init, N, sigma, variable_vec = 200,
     plot_data,
     aes(x = .time, y = loss_error, color = algorithm, group = algorithm)
   ) +
-    geom_line(linewidth = 1) +
+    geom_step(direction = "hv", linewidth = 1) +
     scale_x_log10() +
     scale_y_log10() +
     scale_color_manual(values = algorithm_colors) +
@@ -342,6 +377,182 @@ compare_optimizers <- function(theta_init, N, sigma, variable_vec = 200,
     theta_ref = theta_ref,
     reference_loss = reference_loss
   )
+}
+
+compare_optimizers_ut <- function(theta_init, N, sigma, variable_vec = 200,
+                               variable = "batch_size", ...) {
+  variable <- match.arg(variable, c("batch_size", "gamma_0"))
+  if (!is.numeric(variable_vec) || length(variable_vec) == 0L ||
+      any(!is.finite(variable_vec)) || any(variable_vec <= 0)) {
+    stop("variable_vec must be a non-empty vector of positive finite numbers.")
+  }
+  if (variable == "batch_size" && any(variable_vec != floor(variable_vec))) {
+    stop("variable_vec must contain whole numbers when varying batch_size.")
+  }
+  variable_vec <- unique(variable_vec)
+  variable_label <- if (variable == "batch_size") "batch size" else "gamma_0"
+  sgd_labels <- paste0("SGD (", variable_label, " = ", variable_vec, ")")
+
+  # Keep the tracer's parameter columns consistent from the initial state.
+  names(theta_init) <- c("alpha", "beta", "gamma", "delta")
+  # 15 grid points on the log-dose scale
+  log_grid <- seq(1, 5, length.out = 15)
+  x <- exp(sample(log_grid, N, replace = TRUE))
+  y <- dose_response(x, theta_true) +
+    rnorm(N, mean = 0, sd = sigma)
+
+  fn <- function(theta) loss_func(theta, x, y)
+  gr <- function(theta) gradient_func(theta, x, y)
+  hess <- function(theta) hess_full(theta, x, y)
+
+  theta_ref <- damped_newton(
+    theta_true, fn, gr, hess, tol = 1e-12, max_iter = 1000
+  )$theta
+  reference_loss <- fn(theta_ref)
+
+  gd_tracer <- tracer(c("theta"), Delta = 0)
+  gd_fit <- gradient_descent(theta_init, fn, gr, cb = gd_tracer$tracer)
+  dn_tracer <- tracer(c("theta"), Delta = 0)
+  dn_fit <- damped_newton(theta_init, fn, gr, hess, cb = dn_tracer$tracer)
+
+  add_loss_error <- function(summary_data) {
+    summary_data %>%
+      rowwise() %>%
+      mutate(loss_error = abs(
+        fn(c_across(starts_with("theta."))) - reference_loss
+      )) %>%
+      ungroup()
+  }
+
+  gd_summary <- add_loss_error(summary(gd_tracer))
+  dn_summary <- add_loss_error(summary(dn_tracer))
+  sgd_results <- lapply(variable_vec, function(value) {
+    sgd_tracer <- tracer(c("theta"), Delta = 0)
+    sgd_args <- list(
+      theta_init = theta_init, x = x, y = y, grad = gradient_func,
+      cb = sgd_tracer$tracer, ...
+    )
+    sgd_args[[variable]] <- value
+    fit <- do.call(sgd_update_traced, sgd_args)
+    result <- add_loss_error(summary(sgd_tracer))
+    result[[variable]] <- value
+    result$algorithm <- paste0("SGD (", variable_label, " = ", value, ")")
+    list(theta = fit$theta, summary = result)
+  })
+  sgd_summary <- bind_rows(lapply(sgd_results, function(result) result$summary))
+
+  plot_data <- bind_rows(
+    transform(gd_summary, algorithm = "Gradient descent"),
+    transform(dn_summary, algorithm = "Damped Newton"),
+    sgd_summary
+  )
+  algorithm_levels <- c("Gradient descent", "Damped Newton", sgd_labels)
+  plot_data$algorithm <- factor(plot_data$algorithm, levels = algorithm_levels)
+  algorithm_colors <- c(
+    "Gradient descent" = "#e0cc11",
+    "Damped Newton" = "firebrick",
+    setNames(hcl.colors(length(variable_vec), palette = "Dark 3"), sgd_labels)
+  )
+
+  convergence_plot <- ggplot(
+    plot_data,
+    aes(x = .time, y = loss_error, color = algorithm, group = algorithm)
+  ) +
+    geom_step(direction = "hv", linewidth = 1) +
+    scale_x_log10() +
+    scale_y_log10() +
+    scale_color_manual(values = algorithm_colors) +
+    labs(
+      x = "Time",
+      y = "|L(theta) - L(theta_ref)|",
+      color = "Algorithm"
+    ) +
+    theme_minimal()
+
+  final_thetas <- c(
+    list("Gradient descent" = gd_fit$theta, "Damped Newton" = dn_fit$theta),
+    setNames(lapply(sgd_results, function(result) result$theta), sgd_labels),
+    list("Data generating curve" = theta_true)
+  )
+  x_grid <- exp(seq(min(log_grid), max(log_grid), length.out = 300))
+  curve_data <- bind_rows(lapply(names(final_thetas), function(algorithm) {
+    data.frame(
+      x = x_grid,
+      response = dose_response(x_grid, final_thetas[[algorithm]]),
+      algorithm = algorithm
+    )
+  }))
+  curve_levels <- c(algorithm_levels, "Data generating curve")
+  curve_data$algorithm <- factor(curve_data$algorithm, levels = curve_levels)
+  curve_plot <- ggplot(
+    curve_data, aes(x = x, y = response, color = algorithm, linetype = algorithm)
+  ) +
+    geom_point(
+      data = data.frame(x = x, y = y), aes(x = x, y = y),
+      inherit.aes = FALSE, color = "grey40", alpha = 0.25, size = 1.5
+    ) +
+    geom_line(linewidth = 1.5) +
+    scale_x_log10(breaks = scales::breaks_log(n = 5),
+                  labels = scales::label_number()) +
+    scale_color_manual(values = c(algorithm_colors, "Data generating curve" = "black")) +
+    scale_linetype_manual(values = setNames(
+      c(rep("solid", length(algorithm_levels)), "longdash"), curve_levels
+    )) +
+    labs(x = "Dose (log scale)", y = "Response", color = "Curve",
+         linetype = "Curve") +
+    theme_minimal(base_size = 13) +
+    theme(axis.title = element_text(color = "black"))
+
+  list(
+    gd_summary = gd_summary,
+    dn_summary = dn_summary,
+    sgd_summary = sgd_summary,
+    convergence_plot = convergence_plot,
+    curve_plot = curve_plot,
+    data = data.frame(x = x, y = y),
+    theta_ref = theta_ref,
+    reference_loss = reference_loss
+  )
+}
+
+best_curves_before_time <- function(comparison, time_limit = 1e-3) {
+  if (!is.numeric(time_limit) || length(time_limit) != 1L ||
+      !is.finite(time_limit) || time_limit <= 0) {
+    stop("time_limit must be one positive finite number.")
+  }
+
+  trace_data <- comparison$convergence_plot$data
+  theta_columns <- paste0("theta.", c("alpha", "beta", "gamma", "delta"))
+  selected_traces <- trace_data %>%
+    filter(is.finite(.time), .time < time_limit, is.finite(loss_error)) %>%
+    group_by(algorithm) %>%
+    arrange(loss_error, .time, .by_group = TRUE) %>%
+    slice_head(n = 1) %>%
+    ungroup() %>%
+    select(algorithm, .time, loss_error, all_of(theta_columns))
+
+  missing_algorithms <- setdiff(
+    as.character(unique(trace_data$algorithm)),
+    as.character(selected_traces$algorithm)
+  )
+  if (length(missing_algorithms) > 0L) {
+    stop("No finite trace before time_limit for: ",
+         paste(missing_algorithms, collapse = ", "))
+  }
+
+  # Reuse the original grid, generating curve, observations, and styling.
+  curve_plot <- comparison$curve_plot
+  curve_data <- curve_plot$data
+  for (i in seq_len(nrow(selected_traces))) {
+    curve_rows <- as.character(curve_data$algorithm) ==
+      as.character(selected_traces$algorithm[i])
+    theta <- as.numeric(unlist(selected_traces[i, theta_columns],
+                               use.names = FALSE))
+    curve_data$response[curve_rows] <- dose_response(curve_data$x[curve_rows], theta)
+  }
+  curve_plot$data <- curve_data
+
+  list(curve_plot = curve_plot, selected_traces = selected_traces)
 }
 
 compare_optimizers_contour <- function(theta_init, N, sigma, variable_vec = 200,
@@ -499,69 +710,3 @@ compare_optimizers_contour <- function(theta_init, N, sigma, variable_vec = 200,
     reference_loss = fn(theta_ref)
   )
 }
-
-set.seed(123)
-comparison_1000 <- compare_optimizers(
-  c(3, 2, 2, 5),
-  N = 1000,
-  sigma = 0.25,
-  variable_vec = c(1, 50, 200)
-)
-
-comparison_1000$convergence_plot
-comparison_1000$curve_plot
-
-set.seed(123)
-comparison_10000 <- compare_optimizers(
-  c(3, 2, 2, 5),
-  N = 10000,
-  sigma = 0.25,
-  variable_vec = c(1, 50, 200)
-)
-
-comparison_10000$convergence_plot
-comparison_10000$curve_plot
-
-set.seed(123)
-comparison_100000 <- compare_optimizers(
-  c(3, 2, 2, 5),
-  N = 100000,
-  sigma = 0.25,
-  variable_vec = c(1, 50, 200)
-)
-
-comparison_100000$convergence_plot
-comparison_100000$curve_plot
-
-# #NEWTON AND GD GET STUCK:
-
-set.seed(123)
-comparison_10000_p2 <- compare_optimizers(
-  c(1, 4, 0, 2),
-  N = 10000,
-  sigma = 0.25,
-  variable_vec = c(1, 50, 200),
-)
-
-comparison_10000_p2$convergence_plot
-comparison_10000_p2$curve_plot
-
-paths_10000 <- compare_optimizers_contour(
-  c(3, 2, 2, 5),
-  N = 1000,
-  sigma = 0.25,
-  variable_vec = c(1, 50, 200),
-  dims = c(1, 2)
-)
-
-paths_10000$contour_plot
-
-paths_10000_p2 <- compare_optimizers_contour(
-  c(1, 4, 0, 2),
-  N = 10000,
-  sigma = 0.25,
-  variable_vec = c(1, 50, 200),
-  dims = c(1, 2)
-)
-
-paths_10000_p2$contour_plot
