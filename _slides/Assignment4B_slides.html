@@ -6,8 +6,8 @@
 <script src="Assignment4B_slides_files/libs/quarto-html/tippy.umd.min.js"></script>
 <link href="Assignment4B_slides_files/libs/quarto-html/tippy.css" rel="stylesheet">
 <link href="Assignment4B_slides_files/libs/quarto-html/light-border.css" rel="stylesheet">
-<link href="Assignment4B_slides_files/libs/quarto-html/quarto-syntax-highlighting-845c23b38eaddc0f92fda52bfe77a8c8.css" rel="stylesheet" id="quarto-text-highlighting-styles"><meta charset="utf-8">
-  <meta name="generator" content="quarto-1.9.36">
+<link href="Assignment4B_slides_files/libs/quarto-html/quarto-syntax-highlighting-64a204ab8560d761af7679ceaba22944.css" rel="stylesheet" id="quarto-text-highlighting-styles"><meta charset="utf-8">
+  <meta name="generator" content="quarto-1.10.18">
 
   <title>Assignment 4B</title>
   <meta name="apple-mobile-web-app-capable" content="yes">
@@ -19,10 +19,13 @@
     /* Default styles provided by pandoc.
     ** See https://pandoc.org/MANUAL.html#variables-for-html for config info.
     */
-    code{white-space: pre-wrap;}
     span.smallcaps{font-variant: small-caps;}
-    div.columns{display: flex; gap: min(4vw, 1.5em);}
-    div.column{flex: auto; overflow-x: auto;}
+    div.columns{display: flex; gap: 1.5em;}
+    div.column{flex: auto;}
+    @media screen {
+    div.columns{gap: min(4vw, 1.5em);}
+    div.column{overflow-x: auto;}
+    }
     div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
     ul.task-list{list-style: none;}
     ul.task-list li input[type="checkbox"] {
@@ -387,14 +390,66 @@ p_i
 <ul>
 <li>We use a Damped Newton with tolerance of <span class="math inline">\(10^{-12}\)</span> to find <span class="math inline">\(\hat{\theta}\)</span></li>
 <li>Find parameters <span class="math inline">\(\hat{\theta}=(2.509440, 1.405544, 0.5, 4)\)</span></li>
-<li>These will be used at the ‘true’ theta in the sample.</li>
+<li>These will be used as the ‘true’ theta in the sample.</li>
 </ul></li>
 </ol>
 </section>
 <section id="choice-of-a-and-k" class="slide level2 center">
 <h2>Choice of a and K</h2>
+<p>For intial learning rate <span class="math inline">\(\gamma_0=0.01\)</span></p>
 
-<img data-src="Pictures/HM1.png" style="width:80.0%" class="r-stretch quarto-figure-center"><p class="caption">Heatmap showing choice of <span class="math inline">\(a\)</span> and <span class="math inline">\(K\)</span></p></section>
+<img data-src="Pictures/HMlrn0low.png" style="width:80.0%" class="r-stretch quarto-figure-center"><p class="caption">Heatmap showing choice of <span class="math inline">\(a\)</span> and <span class="math inline">\(K\)</span> for <span class="math inline">\(\gamma_0=0.01\)</span></p></section>
+<section id="choice-of-a-and-k-1" class="slide level2 center">
+<h2>Choice of a and K</h2>
+<p>For intial learning rate <span class="math inline">\(\gamma_0=0.5\)</span></p>
+
+<img data-src="Pictures/HMlrn0medium.png" style="width:80.0%" class="r-stretch quarto-figure-center"><p class="caption">Heatmap showing choice of <span class="math inline">\(a\)</span> and <span class="math inline">\(K\)</span> for <span class="math inline">\(\gamma_0=0.5\)</span></p></section>
+<section id="choice-of-a-and-k-2" class="slide level2 center">
+<h2>Choice of a and K</h2>
+<p>For intial learning rate <span class="math inline">\(\gamma_0=3\)</span></p>
+
+<img data-src="Pictures/HMlrn0high.png" style="width:80.0%" class="r-stretch quarto-figure-center"><p class="caption">Heatmap showing choice of <span class="math inline">\(a\)</span> and <span class="math inline">\(K\)</span> for <span class="math inline">\(\gamma_0=3\)</span></p><p>It seems that setting <span class="math inline">\(a=1\)</span> and <span class="math inline">\(K=10,000\)</span> is somewhat resonable for different initial learning rates.</p>
+</section>
+<section id="choice-of-initial-learning-rate-gamma_0-mse" class="slide level2 center">
+<h2>Choice of initial learning rate <span class="math inline">\(\gamma_0\)</span>, MSE</h2>
+<div class="columns">
+<div class="column" style="width:50%;">
+<div class="quarto-figure quarto-figure-center">
+<figure>
+<p><img data-src="Pictures/gamma0.png" style="width:100.0%"></p>
+<figcaption>MSE vs elapsed time (<span class="math inline">\(a=1\)</span>, <span class="math inline">\(K=10000\)</span>)</figcaption>
+</figure>
+</div>
+</div><div class="column" style="width:50%;">
+<div class="quarto-figure quarto-figure-center">
+<figure>
+<p><img data-src="Pictures/gamma0epoch.png" style="width:100.0%"></p>
+<figcaption>MSE vs epochs (<span class="math inline">\(a=1\)</span>, <span class="math inline">\(K=10000\)</span>)</figcaption>
+</figure>
+</div>
+</div></div>
+<p>Too small value of <span class="math inline">\(\gamma_0\)</span> makes convergence very slow, but large values seems to make the results very random.</p>
+</section>
+<section id="choice-of-initial-learning-rate-gamma_0-path-plot" class="slide level2 center">
+<h2>Choice of initial learning rate <span class="math inline">\(\gamma_0\)</span>, Path-plot</h2>
+<div class="columns">
+<div class="column" style="width:50%;">
+<div class="quarto-figure quarto-figure-center">
+<figure>
+<p><img data-src="Pictures/lrn0path.png" style="width:100.0%"></p>
+<figcaption>Path (<span class="math inline">\(a=1\)</span>, <span class="math inline">\(K=10000\)</span>) with max epochs of 200</figcaption>
+</figure>
+</div>
+</div><div class="column" style="width:50%;">
+<div class="quarto-figure quarto-figure-center">
+<figure>
+<p><img data-src="Pictures/lrn0path2.png" style="width:100.0%"></p>
+<figcaption>Path (<span class="math inline">\(a=1\)</span>, <span class="math inline">\(K=10000\)</span>) with max epochs of 200</figcaption>
+</figure>
+</div>
+</div></div>
+<p>Taking <span class="math inline">\(\gamma_0\)</span> too large seems to make it jump all over the place. Having <span class="math inline">\(\gamma_0\)</span> too little makes it not converge at all. A value in between is probably to prefer.</p>
+</section>
 <section id="optimizer-comparison" class="slide level2 comparison-slide center">
 <h2>Optimizer comparison</h2>
 <ul>
@@ -488,7 +543,7 @@ p_i
         progress: true,
 
         // Display the page number of the current slide
-        slideNumber: false,
+        slideNumber: 'c/t',
 
         // 'all', 'print', or 'speaker'
         showSlideNumber: 'all',

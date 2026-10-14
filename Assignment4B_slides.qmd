@@ -8,6 +8,7 @@ format:
     center: true
     embed-resources: false
     code-line-numbers: false
+    slide-number: true
     slide-level: 2
 ---
 
@@ -229,14 +230,69 @@ Two problems:
 2. When sampling from $\theta_{\mathrm{true}} = (2.5, 1.4, 0.5, 4.0)$ these will not be the optimal parameters in the sample.
    - We use a Damped Newton with tolerance of $10^{-12}$ to find $\hat{\theta}$
    - Find parameters $\hat{\theta}=(2.509440, 1.405544, 0.5, 4)$
-   - These will be used at the 'true' theta in the sample.
+   - These will be used as the 'true' theta in the sample.
 
 
 
 
 ## Choice of a and K
 
-![Heatmap showing choice of $a$ and $K$](Pictures/HM1.png){width=80%}
+For intial learning rate $\gamma_0=0.01$
+
+![Heatmap showing choice of $a$ and $K$ for $\gamma_0=0.01$](Pictures/HMlrn0low.png){width=80%}
+
+## Choice of a and K
+
+For intial learning rate $\gamma_0=0.5$
+
+![Heatmap showing choice of $a$ and $K$ for $\gamma_0=0.5$](Pictures/HMlrn0medium.png){width=80%}
+
+## Choice of a and K
+
+For intial learning rate $\gamma_0=3$
+
+![Heatmap showing choice of $a$ and $K$ for $\gamma_0=3$](Pictures/HMlrn0high.png){width=80%}
+
+It seems that setting $a=1$ and $K=10,000$ is somewhat resonable for different initial learning rates.
+
+
+## Choice of initial learning rate $\gamma_0$, MSE
+
+::: {.columns}
+
+::: {.column width="50%"}
+![MSE vs elapsed time ($a=1$, $K=10000$)](Pictures/gamma0.png){width=100%}
+:::
+
+::: {.column width="50%"}
+![MSE vs epochs ($a=1$, $K=10000$)](Pictures/gamma0epoch.png){width=100%}
+:::
+
+:::
+
+Too small value of $\gamma_0$ makes convergence very slow, but large values seems to make the results very random.
+
+
+## Choice of initial learning rate $\gamma_0$, Path-plot
+
+::: {.columns}
+
+::: {.column width="50%"}
+![Path ($a=1$, $K=10000$) with max epochs of 200](Pictures/lrn0path.png){width=100%}
+:::
+
+::: {.column width="50%"}
+![Path ($a=1$, $K=10000$) with max epochs of 200](Pictures/lrn0path2.png){width=100%}
+:::
+
+:::
+
+Taking $\gamma_0$ too large seems to make it jump all over the place. Having $\gamma_0$ too little makes it not converge at all. A value in between is probably to prefer.
+
+
+
+
+
 
 
 ## Optimizer comparison {.comparison-slide}
