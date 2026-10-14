@@ -7,8 +7,10 @@ comparison_1000_ut <- compare_optimizers_ut(
   N = 1000,
   sigma = 0.25,
   variable_vec = c(1, 50, 250),
-  mepoch_vec = c(200, 500, 500)
+  mepoch_vec = c(100, 500, 500)
 )
+
+comparison_1000_ut$convergence_plot
 
 set.seed(123)
 comparison_1000_p2_ut <- compare_optimizers_ut(
@@ -16,8 +18,10 @@ comparison_1000_p2_ut <- compare_optimizers_ut(
   N = 1000,
   sigma = 0.25,
   variable_vec = c(1, 50, 250),
-  mepoch_vec = c(200, 500, 500)
+  mepoch_vec = c(100, 500, 500)
 )
+
+comparison_1000_p2_ut$convergence_plot
 
 # Use each algorithm's best recorded theta strictly before 5 milliseconds.
 comparison_1000_ut_early <- best_curves_before_time(

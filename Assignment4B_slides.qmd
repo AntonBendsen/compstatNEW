@@ -411,135 +411,24 @@ Now, let us instead move from only looking on $(\alpha,\beta)$ to optimize all f
 
 True parameters: $\theta_{\mathrm{true}} = (2.5, 1.4, 0.5, 4.0)^{\mathsf T}$; starting guess: $\theta_0 = (3, 2, 2, 5)^{\mathsf T}$.
 
-```{r}
-#| label: performance-comparisons
-#| include: false
-#| cache: true
-#| cache.lazy: false
-#| cache.extra: !expr tools::md5sum(c("A4_comparefuncs.R", "A4_performanceplots.R"))
-source("A4_performanceplots.R")
-```
+<!-- Regenerate both grids by sourcing A4_performanceplots.R separately. -->
 
-```{r}
-#| label: performance-grid-good
-#| cache: false
-#| echo: false
-#| warning: false
-#| message: false
-#| fig-width: 13.2
-#| fig-height: 5.6
-#| out-width: "100%"
-#| fig-align: center
-#| fig-alt: "Six plots for the good starting guess: convergence above fitted curves, with sample sizes 1,000, 10,000, and 100,000 in columns. Fits use the best recorded theta before 0.001, 0.01, and 0.1 seconds, respectively."
-library(dplyr)
-make_performance_grid <- function(comparisons) {
-  sample_sizes <- c("1,000", "10,000", "100,000")
-  time_limits <- c(0.001, 0.01, 0.1)
-  early_comparisons <- Map(best_curves_before_time, comparisons, time_limits)
-  convergence_plots <- lapply(seq_along(comparisons), function(i) {
-    comparisons[[i]]$convergence_plot +
-      ggplot2::labs(title = paste("N =", sample_sizes[i]), x = "Time (s)") +
-      ggplot2::geom_vline(
-        xintercept = time_limits[i], color = "grey35", linetype = "dashed",
-        linewidth = 0.6, show.legend = FALSE
-      ) +
-      ggplot2::guides(color = "none")
-  })
-  curve_plots <- lapply(seq_along(early_comparisons), function(i) {
-    early_comparisons[[i]]$curve_plot +
-      ggplot2::labs(title = paste("Best fit before", time_limits[i], "s")) +
-      ggplot2::guides(
-        color = ggplot2::guide_legend(nrow = 1),
-        linetype = ggplot2::guide_legend(nrow = 1)
-      )
-  })
-  patchwork::wrap_plots(
-    c(convergence_plots, curve_plots), ncol = 3, nrow = 2,
-    byrow = TRUE, guides = "collect"
-  ) &
-      ggplot2::theme(
-        plot.title = ggplot2::element_text(size = 13, hjust = 0.5),
-        axis.title = ggplot2::element_text(size = 10),
-        axis.text = ggplot2::element_text(size = 9),
-        legend.position = "bottom",
-        legend.title = ggplot2::element_blank(),
-        legend.text = ggplot2::element_text(size = 10),
-        plot.margin = ggplot2::margin(4, 6, 2, 2)
-      )
-}
-make_performance_grid(list(comparison_1000, comparison_10000, comparison_100000))
-```
+![](Pictures/performance-grid-good.png){width=100% fig-align="center" fig-alt="Six plots for the good starting guess: convergence above fitted curves, with sample sizes 1,000, 10,000, and 100,000 in columns. Fits use the best recorded theta before 0.001, 0.01, and 0.1 seconds, respectively."}
 
 ::: {.sgd-parameters}
-Curves minimize $|L(\theta) - L(\theta_{\mathrm{ref}})|$ before the dashed line. Black X: converged GD/Newton.
+Every SGD update is shown. GD/Newton are drawn in front. Fits minimize $|L(\theta) - L(\theta_{\mathrm{ref}})|$ over all updates before the dashed line. Black X: converged.
 
-SGD: $\gamma_0 = `r formals(sgd)$gamma_0`$, $K = `r formals(sgd)$K`$, $a = `r formals(sgd)$a`$; max epochs $(`r paste(comparison_1000$sgd_settings$max_epochs, collapse = ", ")`)$ for batches $(`r paste(comparison_1000$sgd_settings$batch_size, collapse = ", ")`)$; tolerance $= `r sprintf("%g", formals(sgd)$tol)`$.
+SGD: $\gamma_0 = 0.5$, $K = 100$, $a = 0.9$; max epochs $(100, 500, 500)$ for batches $(1, 50, 250)$. Stops at the epoch cap.
 :::
 
 ## Performance comparison: Poor start guess {#performance-comparison-alternative .performance-slide .performance-grid-slide}
 
 True parameters: $\theta_{\mathrm{true}} = (2.5, 1.4, 0.5, 4.0)^{\mathsf T}$; starting guess: $\theta_0 = (1, 4, 0, 2)^{\mathsf T}$.
 
-```{r}
-#| label: performance-grid-poor
-#| cache: false
-#| echo: false
-#| warning: false
-#| message: false
-#| fig-width: 13.2
-#| fig-height: 5.6
-#| out-width: "100%"
-#| fig-align: center
-#| fig-alt: "Six plots for the poor starting guess: convergence above fitted curves, with sample sizes 1,000, 10,000, and 100,000 in columns. Fits use the best recorded theta before 0.001, 0.01, and 0.1 seconds, respectively."
-make_performance_grid(list(
-  comparison_1000_p2, comparison_10000_p2, comparison_100000_p2
-))
-```
+![](Pictures/performance-grid-poor.png){width=100% fig-align="center" fig-alt="Six plots for the poor starting guess: convergence above fitted curves, with sample sizes 1,000, 10,000, and 100,000 in columns. Fits use the best recorded theta before 0.001, 0.01, and 0.1 seconds, respectively."}
 
 ::: {.sgd-parameters}
-Curves minimize $|L(\theta) - L(\theta_{\mathrm{ref}})|$ before the dashed line. Black X: converged GD/Newton.
+Every SGD update is shown. GD/Newton are drawn in front. Fits minimize $|L(\theta) - L(\theta_{\mathrm{ref}})|$ over all updates before the dashed line. Black X: converged.
 
-SGD: $\gamma_0 = `r formals(sgd)$gamma_0`$, $K = `r formals(sgd)$K`$, $a = `r formals(sgd)$a`$; max epochs $(`r paste(comparison_1000_p2$sgd_settings$max_epochs, collapse = ", ")`)$ for batches $(`r paste(comparison_1000_p2$sgd_settings$batch_size, collapse = ", ")`)$; tolerance $= `r sprintf("%g", formals(sgd)$tol)`$.
-:::
-
-## Performance comparison: Update tracing {.performance-slide .performance-grid-slide}
-
-$N = 1{,}000$; true parameters: $\theta_{\mathrm{true}} = (2.5, 1.4, 0.5, 4.0)^{\mathsf T}$.
-
-```{r}
-#| label: update-traced-comparisons
-#| include: false
-#| cache: true
-#| cache.lazy: false
-#| cache.extra: !expr tools::md5sum(c("A4_comparefuncs.R", "4B_updatetracedperformanceplots.R"))
-source("4B_updatetracedperformanceplots.R")
-```
-
-```{r}
-#| label: performance-grid-update-traced
-#| cache: false
-#| echo: false
-#| warning: false
-#| message: false
-#| fig-width: 13.2
-#| fig-height: 5.6
-#| out-width: "100%"
-#| fig-align: center
-#| fig-alt: "Update-traced optimization with N = 1,000 in a 2 by 2 grid. The good starting guess is on the left and the poor starting guess on the right. Convergence is above fitted curves using each algorithm's best recorded theta strictly before 5 milliseconds."
-update_traced_marked_grid <- update_traced_performance_grid
-for (i in 1:2) {
-  update_traced_marked_grid[[i]] <- update_traced_marked_grid[[i]] +
-    ggplot2::geom_vline(
-      xintercept = 0.005, color = "grey35", linetype = "dashed",
-      linewidth = 0.6, show.legend = FALSE
-    )
-}
-grid::grid.newpage()
-grid::grid.draw(patchwork::patchworkGrob(update_traced_marked_grid))
-```
-
-::: {.sgd-parameters}
-SGD is traced after every update. Curve cutoff: $5\,\mathrm{ms}$. Black X: converged GD/Newton.
-
-SGD: $\gamma_0 = `r formals(sgd_update_traced)$gamma_0`$, $K = `r formals(sgd_update_traced)$K`$, $a = `r formals(sgd_update_traced)$a`$; max epochs $(`r paste(update_traced_comparisons[[1]]$sgd_settings$max_epochs, collapse = ", ")`)$ for batches $(`r paste(update_traced_comparisons[[1]]$sgd_settings$batch_size, collapse = ", ")`)$; tolerance $= `r sprintf("%g", formals(sgd_update_traced)$tol)`$.
+SGD: $\gamma_0 = 0.5$, $K = 100$, $a = 0.9$; max epochs $(100, 500, 500)$ for batches $(1, 50, 250)$. Stops at the epoch cap.
 :::
