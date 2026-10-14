@@ -390,11 +390,11 @@ Comparison of optimization methods
 ::: {.columns}
 
 ::: {.column width="50%"}
-![Paths ($a=1$, $K=10000$, $\gamma_0=0.05$) with max epochs of 200 for mini-batches](Pictures/comparetime.png){width=100%}
+![Elapsed time ($a=1$, $K=10000$, $\gamma_0=0.05$)](Pictures/comparetime.png){width=100%}
 :::
 
 ::: {.column width="50%"}
-![Elapsed time ($a=1$, $K=10000$, $\gamma_0=0.05$)](Pictures/comparepath.png){width=100%}
+![Paths ($a=1$, $K=10000$, $\gamma_0=0.05$) with max epochs of 200 for mini-batches](Pictures/comparepath.png){width=100%}
 :::
 
 :::
