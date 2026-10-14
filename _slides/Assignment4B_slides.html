@@ -456,6 +456,107 @@ p_i
 </div></div>
 <p>Taking <span class="math inline">\(\gamma_0\)</span> too large seems to make it jump all over the place. Having <span class="math inline">\(\gamma_0\)</span> too little makes it not converge at all. A value in between is probably to prefer.</p>
 </section>
+<section id="different-seeds-for-the-sgd" class="slide level2 center">
+<h2>Different seeds for the SGD</h2>
+<p>We try different seeds to see if we randomly ends in local minima and not the global minimum.</p>
+
+<img data-src="Pictures/seeds.png" style="width:100.0%" class="r-stretch quarto-figure-center"><p class="caption">Path (<span class="math inline">\(a=1\)</span>, <span class="math inline">\(K=10000\)</span>, <span class="math inline">\(\gamma_0=0.05\)</span>) with max epochs of 200</p><p>It seems that all five seeds converge to the same minima. They all had the same starting point though. If chaning this effets the minima is also to be explored.</p>
+</section>
+<section id="different-initial-guesses" class="slide level2 center">
+<h2>Different initial guesses</h2>
+<p>Trying different starting guesses on the parameters <span class="math inline">\((\alpha,\beta)\)</span> also shows how robust the SDG is:</p>
+
+<img data-src="Pictures/startingpoints.png" style="width:100.0%" class="r-stretch quarto-figure-center"><p class="caption">Path (<span class="math inline">\(a=1\)</span>, <span class="math inline">\(K=10000\)</span>, <span class="math inline">\(\gamma_0=0.05\)</span>) with max epochs of 200</p><p>Changing the starting guess on <span class="math inline">\((\alpha,\beta)\)</span> also seems to be robust.</p>
+<p>This could indicate that the optimization problem is well-behaved. Even though the problem is not convex.</p>
+</section>
+<section id="mini-batches-in-stochastic-gradient-descent" class="slide level2 sgd-slide center">
+<h2>Mini-batches in stochastic gradient descent</h2>
+<p>Instead of using all observations at every step, we update the parameters from a random subset of the data:</p>
+<p><span class="math display">\[
+\theta_{n+1}
+=
+\theta_n
+-
+\gamma_t
+\frac{1}{|I_n|}
+\sum_{i \in I_n}
+\nabla L_i(\theta_n),
+\]</span></p>
+<p>where <span class="math inline">\(B_t\)</span> is a mini-batch of observations.</p>
+<ul>
+<li>Full batch:
+<ul>
+<li>uses all data each iteration</li>
+<li>stable but computationally expensive</li>
+</ul></li>
+<li>Stochastic gradient descent:
+<ul>
+<li>uses one observation at a time</li>
+<li>very noisy but cheap</li>
+</ul></li>
+<li>Mini-batch SGD:
+<ul>
+<li>uses a small subset of observations</li>
+<li>balances speed and stability (less variance than single-sample SGD but faster updates than full-batch GD)</li>
+<li>often works best in practice</li>
+</ul></li>
+</ul>
+<p>This is especially useful for large datasets, where computing the full gradient is slow or memory-heavy.</p>
+</section>
+<section id="mini-batches-paths" class="slide level2 center">
+<h2>Mini-batches paths</h2>
+<p>We study how the number of batches effect the path.</p>
+
+<img data-src="Pictures/MBpath.png" style="width:100.0%" class="r-stretch quarto-figure-center"><p class="caption">Paths (<span class="math inline">\(a=1\)</span>, <span class="math inline">\(K=10000\)</span>, <span class="math inline">\(\gamma_0=0.05\)</span>) with max epochs of 200 for mini-batches</p><p>It is clear, that having more batches leads to a more stabile result, but the congergence becomes more time-consuming.</p>
+</section>
+<section id="mini-batches-convergence" class="slide level2 center">
+<h2>Mini-batches convergence</h2>
+<div class="columns">
+<div class="column" style="width:50%;">
+<div class="quarto-figure quarto-figure-center">
+<figure>
+<p><img data-src="Pictures/MBtime.png" style="width:100.0%"></p>
+<figcaption>Paths (<span class="math inline">\(a=1\)</span>, <span class="math inline">\(K=10000\)</span>, <span class="math inline">\(\gamma_0=0.05\)</span>) with max epochs of 200 for mini-batches</figcaption>
+</figure>
+</div>
+</div><div class="column" style="width:50%;">
+<div class="quarto-figure quarto-figure-center">
+<figure>
+<p><img data-src="Pictures/MBepoch.png" style="width:100.0%"></p>
+<figcaption>Paths (<span class="math inline">\(a=1\)</span>, <span class="math inline">\(K=10000\)</span>, <span class="math inline">\(\gamma_0=0.05\)</span>)</figcaption>
+</figure>
+</div>
+</div></div>
+<p>Having many batches gives one more stabile results, but the convergence takes many more epochs and time. The fastest (in time) to get to the tolerance of <span class="math inline">\(10^{-5}\)</span> seems to be for batch size 50. So having batches seems to help.</p>
+</section>
+<section id="comparing-sgd-with-gd-and-newton" class="slide level2 center">
+<h2>Comparing SGD with GD and Newton</h2>
+<p>We compare how SGD, SGD with mini-batches, GD and Damped Newton each converge towards the true <span class="math inline">\(\theta\)</span>-value.</p>
+<p>Comparison of optimization methods</p>
+<ul>
+<li>GD uses the full gradient at every iteration. Its updates are stable, but each iteration becomes more expensive as the sample size increases.</li>
+<li>SGD uses one observation per update. This makes updates cheap, but the optimization path is noisy.</li>
+<li>Mini-batch SGD balances these effects: larger batches give smoother updates, while smaller batches make cheaper, noisier updates.</li>
+<li>Damped Newton can converge quickly near a solution, but each iteration is more computationally expensive and its performance may depend strongly on the starting value.</li>
+</ul>
+<div class="columns">
+<div class="column" style="width:50%;">
+<div class="quarto-figure quarto-figure-center">
+<figure>
+<p><img data-src="Pictures/comparetime.png" style="width:100.0%"></p>
+<figcaption>Paths (<span class="math inline">\(a=1\)</span>, <span class="math inline">\(K=10000\)</span>, <span class="math inline">\(\gamma_0=0.05\)</span>) with max epochs of 200 for mini-batches</figcaption>
+</figure>
+</div>
+</div><div class="column" style="width:50%;">
+<div class="quarto-figure quarto-figure-center">
+<figure>
+<p><img data-src="Pictures/comparepath.png" style="width:100.0%"></p>
+<figcaption>Elapsed time (<span class="math inline">\(a=1\)</span>, <span class="math inline">\(K=10000\)</span>, <span class="math inline">\(\gamma_0=0.05\)</span>)</figcaption>
+</figure>
+</div>
+</div></div>
+<p>From the above plots, it is clear that mini-batches leads to the fastes convergence for a tolerance of <span class="math inline">\(10^{-6}\)</span>. Newton and GD are best for when the tolerance is very low. But especially GD is very slow. If a very precise tolerance is not needed, SGD works just fine, with a very fast convergence.</p>
+</section>
 <section id="optimizer-comparison" class="slide level2 comparison-slide center">
 <h2>Optimizer comparison</h2>
 <ul>

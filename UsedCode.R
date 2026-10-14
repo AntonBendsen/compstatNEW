@@ -1632,35 +1632,51 @@ result_sgd_ab <- sgd_two_parameters(
   gamma_fixed = gamma_fixed,
   delta_fixed = delta_fixed,
   theta_ab_target = theta_ab_newton,
-  lr0 = 0.005,
+  lr0 = 0.05,
   max_epochs = 200,
   a = 1,
-  K = 2500,
+  K = 10000,
+  seed = 1
+)
+mini_batch_size_comparison <- 50L
+result_mini_batch_50_ab <- mini_batch_sgd_two_parameters(
+  x = x,
+  y = y,
+  theta_ab = theta_ab_start,
+  batch_size = mini_batch_size_comparison,
+  lr0 = 0.05,
+  max_epochs = result_sgd_ab$epochs,
+  a = 1,
+  K = 10000,
   seed = 1
 )
 
 comparison_summary <- data.frame(
-  method = c("Gradient descent", "Damped Newton", "SGD"),
+  method = c("Gradient descent", "Damped Newton", "SGD", "Mini-batch SGD (50)"),
   alpha = c(result_gd_ab$theta[1], result_newton_ab$theta[1],
-            result_sgd_ab$theta[1]),
+            result_sgd_ab$theta[1], result_mini_batch_50_ab$theta[1]),
   beta = c(result_gd_ab$theta[2], result_newton_ab$theta[2],
-           result_sgd_ab$theta[2]),
+           result_sgd_ab$theta[2], result_mini_batch_50_ab$theta[2]),
   loss = c(result_gd_ab$loss, result_newton_ab$loss,
-           result_sgd_ab$final_loss),
+           result_sgd_ab$final_loss, result_mini_batch_50_ab$final_loss),
   parameter_mse = c(
     mean((result_gd_ab$theta - theta_ab_newton)^2),
     mean((result_newton_ab$theta - theta_ab_newton)^2),
-    result_sgd_ab$final_parameter_mse
+    result_sgd_ab$final_parameter_mse,
+    mean((result_mini_batch_50_ab$theta - theta_ab_newton)^2)
   ),
   elapsed_seconds = c(
     tail(result_gd_ab$time_history, 1),
     tail(result_newton_ab$time_history, 1),
-    tail(result_sgd_ab$elapsed_time, 1)
+    tail(result_sgd_ab$elapsed_time, 1),
+    tail(result_mini_batch_50_ab$elapsed_time, 1)
   )
 )
 print(comparison_summary)
 
 sgd_epoch_rows <- seq_len(result_sgd_ab$epochs) * length(y) + 1L
+mini_batch_50_epoch_rows <- seq_len(result_mini_batch_50_ab$epochs) *
+  ceiling(length(y) / mini_batch_size_comparison) + 1L
 
 comparison_parameter_mse_data <- bind_rows(
   data.frame(
@@ -1686,6 +1702,21 @@ comparison_parameter_mse_data <- bind_rows(
                byrow = TRUE))^2)
     ),
     method = "SGD"
+  ),
+  data.frame(
+    time = c(0, result_mini_batch_50_ab$elapsed_time),
+    parameter_mse = c(
+      mean((theta_ab_start - theta_ab_newton)^2),
+      rowMeans(
+        (result_mini_batch_50_ab$trajectory[
+          mini_batch_50_epoch_rows, , drop = FALSE
+        ] -
+          matrix(theta_ab_newton,
+                 nrow = result_mini_batch_50_ab$epochs, ncol = 2,
+                 byrow = TRUE))^2
+      )
+    ),
+    method = "Mini-batch SGD (50)"
   )
 ) %>%
   filter(time >= 0, parameter_mse > 0, is.finite(parameter_mse))
@@ -1706,20 +1737,46 @@ comparison_parameter_mse_plot <- ggplot(
   theme_minimal()
 
 comparison_path_data <- bind_rows(
-  data.frame(result_gd_ab$trajectory, method = "Gradient descent"),
-  data.frame(result_newton_ab$trajectory, method = "Damped Newton"),
   data.frame(
-    result_sgd_ab$trajectory[unique(round(seq(
+    alpha = result_gd_ab$trajectory[, 1],
+    beta = result_gd_ab$trajectory[, 2],
+    method = "Gradient descent"
+  ),
+  data.frame(
+    alpha = result_newton_ab$trajectory[, 1],
+    beta = result_newton_ab$trajectory[, 2],
+    method = "Damped Newton"
+  ),
+  data.frame(
+    alpha = result_sgd_ab$trajectory[unique(round(seq(
       1, nrow(result_sgd_ab$trajectory),
       length.out = min(1500, nrow(result_sgd_ab$trajectory))
-    ))), , drop = FALSE],
+    ))), 1],
+    beta = result_sgd_ab$trajectory[unique(round(seq(
+      1, nrow(result_sgd_ab$trajectory),
+      length.out = min(1500, nrow(result_sgd_ab$trajectory))
+    ))), 2],
     method = "SGD"
+  ),
+  data.frame(
+    alpha = result_mini_batch_50_ab$trajectory[unique(round(seq(
+      1, nrow(result_mini_batch_50_ab$trajectory),
+      length.out = min(1500, nrow(result_mini_batch_50_ab$trajectory))
+    ))), 1],
+    beta = result_mini_batch_50_ab$trajectory[unique(round(seq(
+      1, nrow(result_mini_batch_50_ab$trajectory),
+      length.out = min(1500, nrow(result_mini_batch_50_ab$trajectory))
+    ))), 2],
+    method = "Mini-batch SGD (50)"
   )
 )
-names(comparison_path_data)[1:2] <- c("alpha", "beta")
 
-comparison_alpha_range <- range(comparison_path_data$alpha, theta_ab_newton[1])
-comparison_beta_range <- range(comparison_path_data$beta, theta_ab_newton[2])
+comparison_alpha_range <- range(
+  comparison_path_data$alpha, theta_ab_newton[1], finite = TRUE
+)
+comparison_beta_range <- range(
+  comparison_path_data$beta, theta_ab_newton[2], finite = TRUE
+)
 comparison_contour <- expand.grid(
   alpha = seq(comparison_alpha_range[1], comparison_alpha_range[2], length.out = 80),
   beta = seq(comparison_beta_range[1], comparison_beta_range[2], length.out = 80)
