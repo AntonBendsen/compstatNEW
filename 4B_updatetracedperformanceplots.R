@@ -6,7 +6,8 @@ comparison_1000_ut <- compare_optimizers_ut(
   c(3, 2, 2, 5),
   N = 1000,
   sigma = 0.25,
-  variable_vec = c(1, 50, 250)
+  variable_vec = c(1, 50, 250),
+  mepoch_vec = c(200, 500, 500)
 )
 
 set.seed(123)
@@ -14,7 +15,8 @@ comparison_1000_p2_ut <- compare_optimizers_ut(
   c(1, 4, 0, 2),
   N = 1000,
   sigma = 0.25,
-  variable_vec = c(1, 50, 250)
+  variable_vec = c(1, 50, 250),
+  mepoch_vec = c(200, 500, 500)
 )
 
 # Use each algorithm's best recorded theta strictly before 5 milliseconds.

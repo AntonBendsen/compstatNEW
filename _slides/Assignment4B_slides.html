@@ -362,15 +362,9 @@ p_i
 <span id="cb4-22"><a href="" aria-hidden="true" tabindex="-1"></a>    }</span>
 <span id="cb4-23"><a href="" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> (<span class="sc">!</span><span class="fu">is.null</span>(cb)) <span class="fu">cb</span>()</span>
 <span id="cb4-24"><a href="" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-25"><a href="" aria-hidden="true" tabindex="-1"></a>    full_grad <span class="ot">&lt;-</span> <span class="fu">grad</span>(theta, x, y)</span>
-<span id="cb4-26"><a href="" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-27"><a href="" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> (<span class="fu">sqrt</span>(<span class="fu">sum</span>(full_grad<span class="sc">^</span><span class="dv">2</span>)) <span class="sc">&lt;</span> tol) {</span>
-<span id="cb4-28"><a href="" aria-hidden="true" tabindex="-1"></a>      <span class="fu">message</span>(<span class="st">"Converged after "</span>, epoch, <span class="st">" epochs."</span>)</span>
-<span id="cb4-29"><a href="" aria-hidden="true" tabindex="-1"></a>      <span class="fu">return</span>(<span class="fu">list</span>(<span class="at">theta =</span> theta))</span>
-<span id="cb4-30"><a href="" aria-hidden="true" tabindex="-1"></a>    }</span>
-<span id="cb4-31"><a href="" aria-hidden="true" tabindex="-1"></a>  }</span>
-<span id="cb4-32"><a href="" aria-hidden="true" tabindex="-1"></a>  <span class="fu">list</span>(<span class="at">theta =</span> theta)</span>
-<span id="cb4-33"><a href="" aria-hidden="true" tabindex="-1"></a>}</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<span id="cb4-25"><a href="" aria-hidden="true" tabindex="-1"></a>  }</span>
+<span id="cb4-26"><a href="" aria-hidden="true" tabindex="-1"></a>  <span class="fu">list</span>(<span class="at">theta =</span> theta)</span>
+<span id="cb4-27"><a href="" aria-hidden="true" tabindex="-1"></a>}</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </div></div>
 </section>
 <section id="finding-the-sgd-parameters" class="slide level2 center">
@@ -415,8 +409,8 @@ p_i
 <p>True parameters: <span class="math inline">\(\theta_{\mathrm{true}} = (2.5, 1.4, 0.5, 4.0)^{\mathsf T}\)</span>; starting guess: <span class="math inline">\(\theta_0 = (3, 2, 2, 5)^{\mathsf T}\)</span>.</p>
 
 <img data-src="Assignment4B_slides_files/figure-revealjs/performance-grid-good-1.png" class="quarto-figure quarto-figure-center r-stretch" style="width:100.0%" alt="Six plots for the good starting guess: convergence above fitted curves, with sample sizes 1,000, 10,000, and 100,000 in columns. Fits use the best recorded theta before 0.001, 0.01, and 0.1 seconds, respectively."><div class="sgd-parameters">
-<p>Curves use the recorded <span class="math inline">\(\theta\)</span> minimizing <span class="math inline">\(|L(\theta) - L(\theta_{\mathrm{ref}})|\)</span> strictly before the indicated time.</p>
-<p>SGD parameters: <span class="math inline">\(\gamma_0 = 0.5\)</span>, <span class="math inline">\(K = 100\)</span>, <span class="math inline">\(a = 0.9\)</span>, maximum epochs <span class="math inline">\(= 500\)</span>, tolerance <span class="math inline">\(= 0.0001\)</span>.</p>
+<p>Curves minimize <span class="math inline">\(|L(\theta) - L(\theta_{\mathrm{ref}})|\)</span> before the dashed line. Black X: converged GD/Newton.</p>
+<p>SGD: <span class="math inline">\(\gamma_0 = 0.5\)</span>, <span class="math inline">\(K = 100\)</span>, <span class="math inline">\(a = 0.9\)</span>; max epochs <span class="math inline">\((200, 500, 500)\)</span> for batches <span class="math inline">\((1, 50, 250)\)</span>; tolerance <span class="math inline">\(= 0.0001\)</span>.</p>
 </div>
 </section>
 <section id="performance-comparison-alternative" class="slide level2 performance-slide performance-grid-slide center">
@@ -424,8 +418,8 @@ p_i
 <p>True parameters: <span class="math inline">\(\theta_{\mathrm{true}} = (2.5, 1.4, 0.5, 4.0)^{\mathsf T}\)</span>; starting guess: <span class="math inline">\(\theta_0 = (1, 4, 0, 2)^{\mathsf T}\)</span>.</p>
 
 <img data-src="Assignment4B_slides_files/figure-revealjs/performance-grid-poor-1.png" class="quarto-figure quarto-figure-center r-stretch" style="width:100.0%" alt="Six plots for the poor starting guess: convergence above fitted curves, with sample sizes 1,000, 10,000, and 100,000 in columns. Fits use the best recorded theta before 0.001, 0.01, and 0.1 seconds, respectively."><div class="sgd-parameters">
-<p>Curves use the recorded <span class="math inline">\(\theta\)</span> minimizing <span class="math inline">\(|L(\theta) - L(\theta_{\mathrm{ref}})|\)</span> strictly before the indicated time.</p>
-<p>SGD parameters: <span class="math inline">\(\gamma_0 = 0.5\)</span>, <span class="math inline">\(K = 100\)</span>, <span class="math inline">\(a = 0.9\)</span>, maximum epochs <span class="math inline">\(= 500\)</span>, tolerance <span class="math inline">\(= 0.0001\)</span>.</p>
+<p>Curves minimize <span class="math inline">\(|L(\theta) - L(\theta_{\mathrm{ref}})|\)</span> before the dashed line. Black X: converged GD/Newton.</p>
+<p>SGD: <span class="math inline">\(\gamma_0 = 0.5\)</span>, <span class="math inline">\(K = 100\)</span>, <span class="math inline">\(a = 0.9\)</span>; max epochs <span class="math inline">\((200, 500, 500)\)</span> for batches <span class="math inline">\((1, 50, 250)\)</span>; tolerance <span class="math inline">\(= 0.0001\)</span>.</p>
 </div>
 </section>
 <section id="performance-comparison-update-tracing" class="slide level2 performance-slide performance-grid-slide center">
@@ -433,8 +427,8 @@ p_i
 <p><span class="math inline">\(N = 1{,}000\)</span>; true parameters: <span class="math inline">\(\theta_{\mathrm{true}} = (2.5, 1.4, 0.5, 4.0)^{\mathsf T}\)</span>.</p>
 
 <img data-src="Assignment4B_slides_files/figure-revealjs/performance-grid-update-traced-1.png" class="quarto-figure quarto-figure-center r-stretch" style="width:100.0%" alt="Update-traced optimization with N = 1,000 in a 2 by 2 grid. The good starting guess is on the left and the poor starting guess on the right. Convergence is above fitted curves using each algorithm's best recorded theta strictly before 5 milliseconds."><div class="sgd-parameters">
-<p>SGD is traced after every update. Curves use the recorded <span class="math inline">\(\theta\)</span> minimizing <span class="math inline">\(|L(\theta) - L(\theta_{\mathrm{ref}})|\)</span> strictly before <span class="math inline">\(5\,\mathrm{ms}\)</span>.</p>
-<p>SGD parameters: <span class="math inline">\(\gamma_0 = 0.5\)</span>, <span class="math inline">\(K = 100\)</span>, <span class="math inline">\(a = 0.9\)</span>, maximum epochs <span class="math inline">\(= 500\)</span>, tolerance <span class="math inline">\(= 0.0001\)</span>; batch sizes: <span class="math inline">\(1, 50, 250\)</span>.</p>
+<p>SGD is traced after every update. Curve cutoff: <span class="math inline">\(5\,\mathrm{ms}\)</span>. Black X: converged GD/Newton.</p>
+<p>SGD: <span class="math inline">\(\gamma_0 = 0.5\)</span>, <span class="math inline">\(K = 100\)</span>, <span class="math inline">\(a = 0.9\)</span>; max epochs <span class="math inline">\((200, 500, 500)\)</span> for batches <span class="math inline">\((1, 50, 250)\)</span>; tolerance <span class="math inline">\(= 0.0001\)</span>.</p>
 </div>
 
 </section>

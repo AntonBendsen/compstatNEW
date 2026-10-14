@@ -1,4 +1,4 @@
-gradient_descent <- function(theta_init, fn, gr, tol = 1e-4, max_iter = 1000,
+gradient_descent <- function(theta_init, fn, gr, tol = 1e-4, max_iter = 600,
                              gamma_0 = 1.0, c = 0.05, d = 0.5, cb = NULL) {
   theta <- theta_init
   gamma <- gamma_0
@@ -138,13 +138,6 @@ sgd_update_traced <- function(theta_init, x, y, grad, tol = 1e-4,
       if (!is.null(cb)) cb()
     }
 
-    full_grad <- grad(theta, x, y)
-
-    if (sqrt(sum(full_grad^2)) < tol) {
-      message("Converged after ", epoch, " epochs.")
-      return(list(theta = theta))
-    }
-
   }
   list(theta = theta)
 }
@@ -244,8 +237,66 @@ hess <- function(theta) hess_full(theta, x, y)
 library(CSwR)
 library(tidyverse)
 
+make_trace_loss_error <- function(x, y, theta_ref, block_size = 10000L) {
+  # All observations at a dose share the same prediction. Within-dose
+  # variation cancels in L(theta) - L(theta_ref), leaving just group means.
+  doses <- sort(unique(x))
+  dose_group <- match(x, doses)
+  weights <- tabulate(dose_group, nbins = length(doses)) / (2 * length(y))
+  mean_y <- vapply(seq_along(doses), function(i) mean(y[dose_group == i]), numeric(1))
+  log_doses <- log(doses)
+  reference_prediction <- dose_response(doses, theta_ref)
+  reference_residual <- mean_y - reference_prediction
+  theta_columns <- paste0("theta.", c("alpha", "beta", "gamma", "delta"))
+
+  function(summary_data) {
+    loss_error <- numeric(nrow(summary_data))
+    if (nrow(summary_data) > 0L) {
+      for (start in seq.int(1L, nrow(summary_data), by = block_size)) {
+        rows <- seq.int(start, min(start + block_size - 1L, nrow(summary_data)))
+        theta <- as.matrix(summary_data[rows, theta_columns, drop = FALSE])
+        prediction <- theta[, 3] + (theta[, 4] - theta[, 3]) *
+          plogis(theta[, 1] - outer(theta[, 2], log_doses))
+        change <- sweep(prediction, 2, reference_prediction, "-")
+        # (res_ref - change)^2 - res_ref^2 avoids subtracting two full losses.
+        difference <- change * sweep(change, 2, 2 * reference_residual, "-")
+        loss_error[rows] <- abs(drop(difference %*% weights))
+      }
+    }
+    summary_data$loss_error <- loss_error
+    summary_data
+  }
+}
+
+converged_trace_endpoints <- function(plot_data, fits, gradient, tolerances) {
+  converged <- vapply(seq_along(fits), function(i) {
+    norm <- sqrt(sum(gradient(fits[[i]]$theta)^2))
+    is.finite(norm) && norm <= tolerances[i]
+  }, logical(1))
+  # Select the last point visible on the log axes for converged algorithms.
+  plot_data %>%
+    filter(as.character(algorithm) %in% names(fits)[converged],
+           is.finite(.time), .time > 0, is.finite(loss_error), loss_error > 0) %>%
+    group_by(algorithm) %>%
+    slice_tail(n = 1) %>%
+    ungroup()
+}
+
+validate_comparison_epochs <- function(mepoch_vec, variable_vec) {
+  if (is.null(mepoch_vec)) return(invisible(NULL))
+  if (!is.numeric(mepoch_vec) || length(mepoch_vec) != length(variable_vec) ||
+      any(!is.finite(mepoch_vec)) || any(mepoch_vec <= 0) ||
+      any(mepoch_vec != floor(mepoch_vec))) {
+    stop("mepoch_vec must contain one positive whole-number epoch limit per variable_vec entry.")
+  }
+  if (anyDuplicated(variable_vec)) {
+    stop("variable_vec must have unique values when mepoch_vec is supplied.")
+  }
+  invisible(NULL)
+}
+
 compare_optimizers <- function(theta_init, N, sigma, variable_vec = 200,
-                               variable = "batch_size", ...) {
+                               variable = "batch_size", mepoch_vec = NULL, ...) {
   variable <- match.arg(variable, c("batch_size", "gamma_0"))
   if (!is.numeric(variable_vec) || length(variable_vec) == 0L ||
       any(!is.finite(variable_vec)) || any(variable_vec <= 0)) {
@@ -254,6 +305,7 @@ compare_optimizers <- function(theta_init, N, sigma, variable_vec = 200,
   if (variable == "batch_size" && any(variable_vec != floor(variable_vec))) {
     stop("variable_vec must contain whole numbers when varying batch_size.")
   }
+  validate_comparison_epochs(mepoch_vec, variable_vec)
   variable_vec <- unique(variable_vec)
   variable_label <- if (variable == "batch_size") "batch size" else "gamma_0"
   sgd_labels <- paste0("SGD (", variable_label, " = ", variable_vec, ")")
@@ -280,27 +332,26 @@ compare_optimizers <- function(theta_init, N, sigma, variable_vec = 200,
   dn_tracer <- tracer(c("theta"), Delta = 0)
   dn_fit <- damped_newton(theta_init, fn, gr, hess, cb = dn_tracer$tracer)
 
-  add_loss_error <- function(summary_data) {
-    summary_data %>%
-      rowwise() %>%
-      mutate(loss_error = abs(
-        fn(c_across(starts_with("theta."))) - reference_loss
-      )) %>%
-      ungroup()
-  }
+  add_loss_error <- make_trace_loss_error(x, y, theta_ref)
 
   gd_summary <- add_loss_error(summary(gd_tracer))
   dn_summary <- add_loss_error(summary(dn_tracer))
-  sgd_results <- lapply(variable_vec, function(value) {
+  sgd_results <- lapply(seq_along(variable_vec), function(i) {
+    value <- variable_vec[i]
     sgd_tracer <- tracer(c("theta"), Delta = 0)
     sgd_args <- list(
       theta_init = theta_init, x = x, y = y, grad = gradient_func,
       cb = sgd_tracer$tracer, ...
     )
     sgd_args[[variable]] <- value
+    # A per-run limit overrides max_epochs supplied through ... .
+    if (!is.null(mepoch_vec)) sgd_args$max_epochs <- mepoch_vec[i]
     fit <- do.call(sgd, sgd_args)
     result <- add_loss_error(summary(sgd_tracer))
     result[[variable]] <- value
+    result$max_epochs <- if (is.null(sgd_args$max_epochs)) {
+      formals(sgd)$max_epochs
+    } else sgd_args$max_epochs
     result$algorithm <- paste0("SGD (", variable_label, " = ", value, ")")
     list(theta = fit$theta, summary = result)
   })
@@ -319,11 +370,22 @@ compare_optimizers <- function(theta_init, N, sigma, variable_vec = 200,
     setNames(hcl.colors(length(variable_vec), palette = "Dark 3"), sgd_labels)
   )
 
+  converged_endpoints <- converged_trace_endpoints(
+    plot_data,
+    list("Gradient descent" = gd_fit, "Damped Newton" = dn_fit), gr,
+    c(formals(gradient_descent)$tol, formals(damped_newton)$tol)
+  )
+
   convergence_plot <- ggplot(
     plot_data,
     aes(x = .time, y = loss_error, color = algorithm, group = algorithm)
   ) +
     geom_step(direction = "hv", linewidth = 1) +
+    geom_point(
+      data = converged_endpoints, aes(x = .time, y = loss_error),
+      inherit.aes = FALSE, color = "black", shape = 4,
+      size = 3, stroke = 1.1, show.legend = FALSE
+    ) +
     scale_x_log10() +
     scale_y_log10() +
     scale_color_manual(values = algorithm_colors) +
@@ -372,7 +434,9 @@ compare_optimizers <- function(theta_init, N, sigma, variable_vec = 200,
     gd_summary = gd_summary,
     dn_summary = dn_summary,
     sgd_summary = sgd_summary,
+    sgd_settings = unique(sgd_summary[c("algorithm", variable, "max_epochs")]),
     convergence_plot = convergence_plot,
+    converged_endpoints = converged_endpoints,
     curve_plot = curve_plot,
     data = data.frame(x = x, y = y),
     theta_ref = theta_ref,
@@ -381,7 +445,7 @@ compare_optimizers <- function(theta_init, N, sigma, variable_vec = 200,
 }
 
 compare_optimizers_ut <- function(theta_init, N, sigma, variable_vec = 200,
-                               variable = "batch_size", ...) {
+                               variable = "batch_size", mepoch_vec = NULL, ...) {
   variable <- match.arg(variable, c("batch_size", "gamma_0"))
   if (!is.numeric(variable_vec) || length(variable_vec) == 0L ||
       any(!is.finite(variable_vec)) || any(variable_vec <= 0)) {
@@ -390,6 +454,7 @@ compare_optimizers_ut <- function(theta_init, N, sigma, variable_vec = 200,
   if (variable == "batch_size" && any(variable_vec != floor(variable_vec))) {
     stop("variable_vec must contain whole numbers when varying batch_size.")
   }
+  validate_comparison_epochs(mepoch_vec, variable_vec)
   variable_vec <- unique(variable_vec)
   variable_label <- if (variable == "batch_size") "batch size" else "gamma_0"
   sgd_labels <- paste0("SGD (", variable_label, " = ", variable_vec, ")")
@@ -416,27 +481,25 @@ compare_optimizers_ut <- function(theta_init, N, sigma, variable_vec = 200,
   dn_tracer <- tracer(c("theta"), Delta = 0)
   dn_fit <- damped_newton(theta_init, fn, gr, hess, cb = dn_tracer$tracer)
 
-  add_loss_error <- function(summary_data) {
-    summary_data %>%
-      rowwise() %>%
-      mutate(loss_error = abs(
-        fn(c_across(starts_with("theta."))) - reference_loss
-      )) %>%
-      ungroup()
-  }
+  add_loss_error <- make_trace_loss_error(x, y, theta_ref)
 
   gd_summary <- add_loss_error(summary(gd_tracer))
   dn_summary <- add_loss_error(summary(dn_tracer))
-  sgd_results <- lapply(variable_vec, function(value) {
+  sgd_results <- lapply(seq_along(variable_vec), function(i) {
+    value <- variable_vec[i]
     sgd_tracer <- tracer(c("theta"), Delta = 0)
     sgd_args <- list(
       theta_init = theta_init, x = x, y = y, grad = gradient_func,
       cb = sgd_tracer$tracer, ...
     )
     sgd_args[[variable]] <- value
+    if (!is.null(mepoch_vec)) sgd_args$max_epochs <- mepoch_vec[i]
     fit <- do.call(sgd_update_traced, sgd_args)
     result <- add_loss_error(summary(sgd_tracer))
     result[[variable]] <- value
+    result$max_epochs <- if (is.null(sgd_args$max_epochs)) {
+      formals(sgd_update_traced)$max_epochs
+    } else sgd_args$max_epochs
     result$algorithm <- paste0("SGD (", variable_label, " = ", value, ")")
     list(theta = fit$theta, summary = result)
   })
@@ -455,11 +518,22 @@ compare_optimizers_ut <- function(theta_init, N, sigma, variable_vec = 200,
     setNames(hcl.colors(length(variable_vec), palette = "Dark 3"), sgd_labels)
   )
 
+  converged_endpoints <- converged_trace_endpoints(
+    plot_data,
+    list("Gradient descent" = gd_fit, "Damped Newton" = dn_fit), gr,
+    c(formals(gradient_descent)$tol, formals(damped_newton)$tol)
+  )
+
   convergence_plot <- ggplot(
     plot_data,
     aes(x = .time, y = loss_error, color = algorithm, group = algorithm)
   ) +
     geom_step(direction = "hv", linewidth = 1) +
+    geom_point(
+      data = converged_endpoints, aes(x = .time, y = loss_error),
+      inherit.aes = FALSE, color = "black", shape = 4,
+      size = 3, stroke = 1.1, show.legend = FALSE
+    ) +
     scale_x_log10() +
     scale_y_log10() +
     scale_color_manual(values = algorithm_colors) +
@@ -508,7 +582,9 @@ compare_optimizers_ut <- function(theta_init, N, sigma, variable_vec = 200,
     gd_summary = gd_summary,
     dn_summary = dn_summary,
     sgd_summary = sgd_summary,
+    sgd_settings = unique(sgd_summary[c("algorithm", variable, "max_epochs")]),
     convergence_plot = convergence_plot,
+    converged_endpoints = converged_endpoints,
     curve_plot = curve_plot,
     data = data.frame(x = x, y = y),
     theta_ref = theta_ref,

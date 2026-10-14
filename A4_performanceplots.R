@@ -5,10 +5,11 @@ comparison_1000 <- compare_optimizers(
   c(3, 2, 2, 5),
   N = 1000,
   sigma = 0.25,
-  variable_vec = c(1, 50, 250)
+  variable_vec = c(1, 50, 250),
+  mepoch_vec = c(100, 500, 500)
 )
 
-# comparison_1000$convergence_plot
+#comparison_1000$convergence_plot
 # comparison_1000$curve_plot
 
 set.seed(123)
@@ -16,7 +17,8 @@ comparison_10000 <- compare_optimizers(
   c(3, 2, 2, 5),
   N = 10000,
   sigma = 0.25,
-  variable_vec = c(1, 50, 250)
+  variable_vec = c(1, 50, 250),
+  mepoch_vec = c(100, 500, 500)
 )
 
 comparison_10000$convergence_plot
@@ -27,7 +29,8 @@ comparison_100000 <- compare_optimizers(
   c(3, 2, 2, 5),
   N = 100000,
   sigma = 0.25,
-  variable_vec = c(1, 50, 250)
+  variable_vec = c(1, 50, 250),
+  mepoch_vec = c(200, 500, 500)
 )
 
 # comparison_100000$convergence_plot
@@ -40,7 +43,8 @@ comparison_1000_p2 <- compare_optimizers(
   c(1, 4, 0, 2),
   N = 1000,
   sigma = 0.25,
-  variable_vec = c(1, 50, 250)
+  variable_vec = c(1, 50, 250),
+  mepoch_vec = c(200, 500, 500)
 )
 
 # comparison_1000_p2$convergence_plot
@@ -51,7 +55,8 @@ comparison_10000_p2 <- compare_optimizers(
   c(1, 4, 0, 2),
   N = 10000,
   sigma = 0.25,
-  variable_vec = c(1, 50, 250)
+  variable_vec = c(1, 50, 250),
+  mepoch_vec = c(200, 500, 500)
 )
 
 # comparison_10000_p2$convergence_plot
@@ -62,7 +67,8 @@ comparison_100000_p2 <- compare_optimizers(
   c(1, 4, 0, 2),
   N = 100000,
   sigma = 0.25,
-  variable_vec = c(1, 50, 250)
+  variable_vec = c(1, 50, 250),
+  mepoch_vec = c(200, 500, 500)
 )
 
 # comparison_100000_p2$convergence_plot
@@ -74,7 +80,8 @@ comparison_1000_ut <- compare_optimizers_ut(
   c(3, 2, 2, 5),
   N = 1000,
   sigma = 0.25,
-  variable_vec = c(1, 50, 250)
+  variable_vec = c(1, 50, 250),
+  mepoch_vec = c(200, 500, 500)
 )
 
 comparison_1000_ut$convergence_plot
@@ -84,7 +91,8 @@ comparison_1000_p2_ut <- compare_optimizers_ut(
   c(1, 4, 0, 2),
   N = 1000,
   sigma = 0.25,
-  variable_vec = c(1, 50, 250)
+  variable_vec = c(1, 50, 250),
+  mepoch_vec = c(200, 500, 500)
 )
 
 comparison_1000_p2_ut$convergence_plot

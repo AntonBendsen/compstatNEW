@@ -75,7 +75,8 @@
 }
 
 .reveal .slides section.slide.sgd-slide:not(#title-slide) pre code {
-  max-height: 470px;
+  height: 506px;
+  max-height: 506px;
 }
 
 .reveal .slides section.sgd-slide .math.display {
@@ -89,6 +90,7 @@
   border-radius: 6px;
   padding: 10px;
   margin: 0;
+  transform: translateY(-18px);
 }
 
 .reveal .slides section.performance-slide .quarto-layout-panel {
