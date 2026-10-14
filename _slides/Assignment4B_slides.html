@@ -539,6 +539,9 @@ p_i
 <li>Mini-batch SGD balances these effects: larger batches give smoother updates, while smaller batches make cheaper, noisier updates.</li>
 <li>Damped Newton can converge quickly near a solution, but each iteration is more computationally expensive and its performance may depend strongly on the starting value.</li>
 </ul>
+</section>
+<section id="comparing-sgd-with-gd-and-newton-1" class="slide level2 center">
+<h2>Comparing SGD with GD and Newton</h2>
 <div class="columns">
 <div class="column" style="width:50%;">
 <div class="quarto-figure quarto-figure-center">
@@ -556,6 +559,7 @@ p_i
 </div>
 </div></div>
 <p>From the above plots, it is clear that mini-batches leads to the fastes convergence for a tolerance of <span class="math inline">\(10^{-6}\)</span>. Newton and GD are best for when the tolerance is very low. But especially GD is very slow. If a very precise tolerance is not needed, SGD works just fine, with a very fast convergence.</p>
+<p>Now, let us instead move from only looking on <span class="math inline">\((\alpha,\beta)\)</span> to optimize all four parameters at a time.</p>
 </section>
 <section id="optimizer-comparison" class="slide level2 comparison-slide center">
 <h2>Optimizer comparison</h2>
