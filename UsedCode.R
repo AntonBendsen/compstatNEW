@@ -272,7 +272,7 @@ damped_newton_delta <- theta_sample[4]
 
 # Explore SGD with gamma and delta fixed at their true values.
 sgd_two_parameters <- function(x, y, theta_ab, gamma_fixed, delta_fixed,
-                               lr0, max_epochs = 200, a = 0.85,
+                               lr0, max_epochs = 200, a = 1,
                                K = 10000, theta_ab_target, seed = 1) {
   set.seed(seed)
   N <- length(y)
@@ -466,6 +466,114 @@ runtime_heatmap <- ggplot(
 
 print(runtime_heatmap)
 
+### - Parallel CPU:
+
+#install.packages(c("future", "furrr"))
+
+library(dplyr)
+library(ggplot2)
+library(future)
+library(furrr)
+
+# Use multiple CPU cores, leaving one core free
+plan(multisession, workers = max(1, parallelly::availableCores() - 2))
+
+a_grid <- c(0.55, 0.7, 0.85, 1.0)
+K_grid <- c(100, 500, 2500, 10000, 50000)
+heatmap_lr0 <- 3
+heatmap_epochs <- 200
+heatmap_seeds <- 1:3
+
+decay_grid <- expand.grid(
+  a = a_grid,
+  K = K_grid,
+  seed = heatmap_seeds
+)
+
+# Run each parameter combination in parallel
+decay_results <- furrr::future_map_dfr(
+  seq_len(nrow(decay_grid)),
+  function(i) {
+
+    run <- sgd_two_parameters(
+      x = x,
+      y = y,
+      theta_ab = theta_ab_start,
+      gamma_fixed = theta_true["gamma"],
+      delta_fixed = theta_true["delta"],
+      theta_ab_target = theta_ab_sample,
+      lr0 = heatmap_lr0,
+      max_epochs = heatmap_epochs,
+      a = decay_grid$a[i],
+      K = decay_grid$K[i],
+      seed = decay_grid$seed[i]
+    )
+
+    data.frame(
+      a = decay_grid$a[i],
+      K = decay_grid$K[i],
+      seed = decay_grid$seed[i],
+      final_parameter_mse = run$final_parameter_mse,
+      runtime_seconds = tail(run$elapsed_time, 1)
+    )
+  },
+  .options = furrr::furrr_options(
+    seed = TRUE,
+    packages = character(0)
+  )
+)
+
+# Summarise results
+decay_heatmap_data <- decay_results %>%
+  group_by(a, K) %>%
+  summarise(
+    median_parameter_mse = median(final_parameter_mse),
+    median_runtime_seconds = median(runtime_seconds),
+    .groups = "drop"
+  )
+
+# Plot heatmap
+decay_heatmap <- ggplot(
+  decay_heatmap_data,
+  aes(
+    x = factor(K, levels = K_grid),
+    y = factor(a, levels = rev(a_grid)),
+    fill = median_parameter_mse
+  )
+) +
+  geom_tile(color = "white") +
+  #geom_text(
+  #  aes(label = formatC(
+  #    median_parameter_mse,
+  #    format = "e",
+  #    digits = 1
+  #  )),
+  #  size = 3
+  #) +
+  scale_fill_gradient(
+    trans = "log10",
+    low = "lightblue",
+    high = "darkblue"
+  ) +
+  labs(
+    title = "SGD parameter MSE by decay parameters",
+    subtitle = paste0(
+      "Median over ", length(heatmap_seeds),
+      " seeds; lr0 = ", heatmap_lr0,
+      ", epochs = ", heatmap_epochs
+    ),
+    x = "K",
+    y = "Decay exponent a",
+    fill = "Median parameter MSE"
+  ) +
+  theme_minimal()
+
+print(decay_heatmap)
+
+# Return to sequential execution when finished
+plan(sequential)
+
+
 
 ### --- Learning rates ---
 
@@ -608,6 +716,114 @@ sgd_two_parameter_path_plot <- ggplot() +
   ) +
   theme_minimal()
 
+sgd_path_data_without_high_lr <- sgd_path_data %>%
+  filter(!learning_rate %in% c("lr0 = 0.5", "lr0 = 0.1"))
+sgd_path_endpoints_without_high_lr <- sgd_path_endpoints %>%
+  filter(!learning_rate %in% c("lr0 = 0.5", "lr0 = 0.1"))
+
+sgd_alpha_range_without_high_lr <- range(
+  sgd_path_data_without_high_lr$alpha,
+  theta_ab_start["alpha"],
+  theta_ab_sample["alpha"]
+)
+sgd_beta_range_without_high_lr <- range(
+  sgd_path_data_without_high_lr$beta,
+  theta_ab_start["beta"],
+  theta_ab_sample["beta"]
+)
+sgd_alpha_padding_without_high_lr <- 0.08 *
+  diff(sgd_alpha_range_without_high_lr)
+sgd_beta_padding_without_high_lr <- 0.08 *
+  diff(sgd_beta_range_without_high_lr)
+sgd_alpha_range_without_high_lr <- sgd_alpha_range_without_high_lr +
+  c(-sgd_alpha_padding_without_high_lr, sgd_alpha_padding_without_high_lr)
+sgd_beta_range_without_high_lr <- sgd_beta_range_without_high_lr +
+  c(-sgd_beta_padding_without_high_lr, sgd_beta_padding_without_high_lr)
+
+sgd_contour_grid_without_high_lr <- expand.grid(
+  alpha = seq(
+    sgd_alpha_range_without_high_lr[1],
+    sgd_alpha_range_without_high_lr[2],
+    length.out = 80
+  ),
+  beta = seq(
+    sgd_beta_range_without_high_lr[1],
+    sgd_beta_range_without_high_lr[2],
+    length.out = 80
+  )
+)
+sgd_contour_grid_without_high_lr$loss <- vapply(
+  seq_len(nrow(sgd_contour_grid_without_high_lr)),
+  function(i) {
+    theta_slice <- c(
+      alpha = sgd_contour_grid_without_high_lr$alpha[i],
+      beta = sgd_contour_grid_without_high_lr$beta[i],
+      gamma = theta_true["gamma"],
+      delta = theta_true["delta"]
+    )
+    full_loss(theta_slice, x, y)
+  },
+  numeric(1)
+)
+
+sgd_two_parameter_path_plot_without_high_lr <- ggplot() +
+  geom_contour(
+    data = sgd_contour_grid_without_high_lr,
+    aes(x = alpha, y = beta, z = loss),
+    color = "grey70"
+  ) +
+  geom_path(
+    data = sgd_path_data_without_high_lr,
+    aes(
+      x = alpha, y = beta,
+      color = learning_rate,
+      group = learning_rate
+    ),
+    linewidth = 0.7,
+    alpha = 0.85
+  ) +
+  geom_point(
+    data = sgd_path_endpoints_without_high_lr,
+    aes(x = alpha, y = beta, color = learning_rate, shape = learning_rate),
+    size = 2.5
+  ) +
+  geom_point(
+    data = data.frame(
+      alpha = theta_ab_start[1],
+      beta = theta_ab_start[2]
+    ),
+    aes(x = alpha, y = beta),
+    shape = 4,
+    size = 3,
+    color = "black"
+  ) +
+  geom_point(
+    data = data.frame(
+      alpha = theta_ab_sample["alpha"],
+      beta = theta_ab_sample["beta"]
+    ),
+    aes(x = alpha, y = beta),
+    shape = 8,
+    size = 3,
+    color = "black"
+  ) +
+  coord_cartesian(
+    xlim = sgd_alpha_range_without_high_lr,
+    ylim = sgd_beta_range_without_high_lr
+  ) +
+  labs(
+    title = "SGD paths with gamma and delta fixed",
+    subtitle = paste(
+      "Excluding learning rates 0.1 and 0.5;",
+      "cross = start, star = Newton sample estimate"
+    ),
+    x = expression(alpha),
+    y = expression(beta),
+    color = "Learning rate",
+    shape = "Final point"
+  ) +
+  theme_minimal()
+
 sgd_parameter_mse_data <- bind_rows(lapply(
   seq_along(sgd_experiments),
   function(i) {
@@ -635,6 +851,7 @@ sgd_parameter_mse_plot <- ggplot(
   theme_minimal()
 
 print(sgd_two_parameter_path_plot)
+print(sgd_two_parameter_path_plot_without_high_lr)
 print(sgd_parameter_mse_plot)
 
 
@@ -647,7 +864,7 @@ print(sgd_parameter_mse_plot)
 # Compare SGD trajectories across five random seeds with fixed hyperparameters.
 trajectory_seeds <- 1:5
 trajectory_lr0 <- 0.05
-trajectory_a <- 0.85
+trajectory_a <- 1
 trajectory_K <- 10000
 trajectory_epochs <- 200
 
@@ -927,8 +1144,8 @@ print(sgd_start_value_trajectory_plot)
 
 
 # Compare ordinary SGD with mini-batch SGD for the two-parameter model.
-comparison_lr0 <- 0.005
-comparison_a <- 0.85
+comparison_lr0 <- 0.05
+comparison_a <- 1
 comparison_K <- 10000
 comparison_epochs <- 200
 mini_batch_sizes <- c(10, 50, 250, 1000, 2500)
@@ -937,14 +1154,14 @@ gradient_ab <- function(theta_ab, x_batch, y_batch) {
   alpha <- theta_ab[1]
   beta <- theta_ab[2]
   log_x <- log(x_batch)
-  p <- plogis(-beta * (log_x - alpha))
+  p <- plogis(alpha - beta * log_x)
   q <- p * (1 - p)
   fit <- theta_true["gamma"] +
     (theta_true["delta"] - theta_true["gamma"]) * p
   residual <- y_batch - fit
-  d_alpha <- (theta_true["delta"] - theta_true["gamma"]) * beta * q
+  d_alpha <- (theta_true["delta"] - theta_true["gamma"]) * q
   d_beta <- -(theta_true["delta"] - theta_true["gamma"]) *
-    (log_x - alpha) * q
+    log_x * q
 
   c(
     alpha = mean(-residual * d_alpha),
@@ -1154,18 +1371,18 @@ mini_batch_contour_plot <- ggplot() +
   theme_minimal() +
   theme(legend.position = "none")
 
-initial_parameter_error <- sqrt(sum((theta_ab_start - theta_ab_newton)^2))
+initial_parameter_mse <- mean((theta_ab_start - theta_ab_newton)^2)
 
-parameter_error_comparison <- bind_rows(
+parameter_mse_comparison <- bind_rows(
   data.frame(
     elapsed_time = c(0, sgd_reference$elapsed_time[seq_len(comparison_epochs)]),
-    parameter_error = c(
-      initial_parameter_error,
-      sqrt(rowSums(
+    parameter_mse = c(
+      initial_parameter_mse,
+      rowMeans(
         (sgd_reference$trajectory[sgd_epoch_rows, 1:2, drop = FALSE] -
             matrix(theta_ab_newton, nrow = comparison_epochs, ncol = 2,
                   byrow = TRUE))^2
-      ))
+      )
     ),
     epoch = 0:comparison_epochs,
     method = "Ordinary SGD"
@@ -1176,54 +1393,54 @@ parameter_error_comparison <- bind_rows(
     epoch_rows <- seq_len(comparison_epochs) * updates_per_epoch + 1L
     data.frame(
       elapsed_time = c(0, result$elapsed_time),
-      parameter_error = c(
-        initial_parameter_error,
-        sqrt(rowSums(
+      parameter_mse = c(
+        initial_parameter_mse,
+        rowMeans(
           (result$trajectory[epoch_rows, 1:2, drop = FALSE] -
                matrix(theta_ab_newton, nrow = comparison_epochs, ncol = 2,
                     byrow = TRUE))^2
-        ))
+        )
       ),
       epoch = 0:comparison_epochs,
       method = names(mini_batch_results)[i]
     )
   }))
 ) %>%
-  filter(parameter_error > 0, is.finite(parameter_error))
+  filter(parameter_mse > 0, is.finite(parameter_mse))
 
 mini_batch_parameter_error_plot <- ggplot(
-  parameter_error_comparison,
-  aes(x = elapsed_time, y = parameter_error, color = method)
+  parameter_mse_comparison,
+  aes(x = elapsed_time, y = parameter_mse, color = method)
 ) +
   geom_line(linewidth = 0.8) +
   geom_point(size = 1.2, alpha = 0.7) +
   scale_x_continuous(trans = scales::pseudo_log_trans(sigma = 0.1)) +
   scale_y_log10() +
   labs(
-    title = "Distance to constrained Newton estimate over time",
+    title = "Parameter MSE to constrained Newton estimate over time",
     subtitle = paste0(
       "a = ", comparison_a,
       ", K = ", comparison_K,
       ", lr0 = ", comparison_lr0
     ),
     x = "Elapsed time (seconds)",
-    y = "Euclidean distance to Newton estimate",
+    y = "Mean squared parameter error",
     color = "Method"
   ) +
   theme_minimal()
 
 early_parameter_error_plot <- ggplot(
-  filter(parameter_error_comparison, epoch <= 20),
-  aes(x = epoch, y = parameter_error, color = method)
+  filter(parameter_mse_comparison, epoch <= 20),
+  aes(x = epoch, y = parameter_mse, color = method)
 ) +
   geom_line(linewidth = 0.8) +
   geom_point(size = 1.6) +
   scale_y_log10() +
   scale_x_continuous(breaks = seq(0, 20, by = 2)) +
   labs(
-    title = "Distance to constrained Newton estimate: first 20 epochs",
+    title = "Parameter MSE to constrained Newton estimate: first 20 epochs",
     x = "Epoch",
-    y = "Euclidean distance to Newton estimate",
+    y = "Mean squared parameter error",
     color = "Method"
   ) +
   theme_minimal()
@@ -1547,5 +1764,3 @@ comparison_path_plot <- ggplot() +
 
 print(comparison_parameter_mse_plot)
 print(comparison_path_plot)
-
-

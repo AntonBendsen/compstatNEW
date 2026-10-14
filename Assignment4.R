@@ -1504,14 +1504,14 @@ gradient_ab <- function(theta_ab, x_batch, y_batch) {
   alpha <- theta_ab[1]
   beta <- theta_ab[2]
   log_x <- log(x_batch)
-  p <- plogis(-beta * (log_x - alpha))
+  p <- plogis(alpha - beta * log_x)
   q <- p * (1 - p)
   fit <- theta_true["gamma"] +
     (theta_true["delta"] - theta_true["gamma"]) * p
   residual <- y_batch - fit
-  d_alpha <- (theta_true["delta"] - theta_true["gamma"]) * beta * q
+  d_alpha <- (theta_true["delta"] - theta_true["gamma"]) * q
   d_beta <- -(theta_true["delta"] - theta_true["gamma"]) *
-    (log_x - alpha) * q
+    log_x * q
 
   c(
     alpha = mean(-residual * d_alpha),
@@ -2271,7 +2271,6 @@ sgd_parameter_convergence_plot <- ggplot(
   theme_minimal()
 
 print(sgd_parameter_convergence_plot)
-
 
 
 
