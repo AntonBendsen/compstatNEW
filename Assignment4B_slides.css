@@ -111,6 +111,15 @@
   margin: 0.3em 0 0.4em;
 }
 
+.reveal .slides section.performance-grid-slide img.performance-grid-image {
+  display: block;
+  width: 100%;
+  height: 480px;
+  max-height: none;
+  object-fit: fill;
+  margin: 0 auto;
+}
+
 .reveal .slides section.performance-grid-slide .sgd-parameters {
   margin-top: 6px;
   font-size: 15px;
@@ -118,5 +127,16 @@
 
 .reveal .slides section.performance-grid-slide .sgd-parameters p {
   margin: 0.3em 0;
+}
+
+.reveal .slides section.correctness-slide table {
+  font-size: 17px;
+  width: 100%;
+}
+
+.reveal .slides section.correctness-slide .sgd-parameters {
+  color: #777777;
+  font-size: 15px;
+  margin-top: 6px;
 }
 

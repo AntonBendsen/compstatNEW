@@ -211,6 +211,33 @@ sgd <- function(theta_init, x, y, grad, tol = 1e-4,
 
 
 
+## Correctness check: SGD {.correctness-slide}
+
+::: {.columns}
+::: {.column width="48%"}
+
+Generate **noiseless data** from $\theta_{\mathrm{true}} = (2.5, 1.4, 0.5, 4)$, with $N = 10{,}000$.
+
+Run the same SGD implementation from three starting guesses and measure the **squared parameter error**:
+
+{{< include Pictures/sgd-correctness-results.md >}}
+
+Starting at the truth leaves it unchanged. The other fits move toward the true parameters and dose-response curve.
+
+This is a numerical sanity check; finite SGD runs need not recover the parameters exactly.
+
+:::
+::: {.column width="52%"}
+
+![](Pictures/sgd-correctness.png){width=100% .nostretch fig-alt="Dose-response curves for true, close, and far starting guesses. Each panel compares the guessed and SGD-fitted curves with the true curve."}
+
+:::
+:::
+
+::: {.sgd-parameters}
+SGD: $\gamma_0 = 0.5$, $K = 100$, $a = 0.9$; batch size 100; 100 epochs. Fixed seeds for data and batch shuffling.
+:::
+
 ## Finding the SGD parameters
 
 To model $\theta$ using SGD different parameters must be studied.
@@ -402,10 +429,37 @@ Now, let us instead move from only looking on $(\alpha,\beta)$ to optimize all f
 
 ## Optimizer comparison {.comparison-slide}
 
+::: {.columns}
+::: {.column width="48%"}
+
 - Compare **SGD**, **gradient descent (GD)**, and **damped Newton** on the same data, using the same initial parameters.
-- GD and damped Newton use **Armijo backtracking**, restarting at $\gamma_0 = 1.0$, with $c = 0.05$ and step reduction factor $d = 0.5$.
-- Both stop when $\|\nabla L(\theta)\|_2 \leq 10^{-4}$, or when their iteration limit is reached.
-- Compare sample sizes $N = 1{,}000$, $10{,}000$, and $100{,}000$; set the random seed to 123 for reproducibility.
+- GD and damped Newton use **Armijo backtracking**, restarting at $\gamma_0 = 1.0$, with $c = 0.05$ and reduction factor $d = 0.5$.
+- GD has max iterations set to 600, Damped Newton to 100.
+- Both stop when $\|\nabla L(\theta)\|_2 \leq 10^{-4}$, or when reaching max iterations.
+
+:::
+::: {.column width="52%"}
+
+**Newton direction and gradient fallback**
+
+Let $g_k = \nabla L(\theta_k)$ and $H_k = \nabla^2 L(\theta_k)$.
+The Newton direction is $p_k^{\mathrm N} = -H_k^{-1}g_k$.
+
+A direction is a **descent direction** if $g_k^{\mathsf T}p_k < 0$. We use
+
+$$
+p_k =
+\begin{cases}
+p_k^{\mathrm N}, & g_k^{\mathsf T}p_k^{\mathrm N} < 0, \\[0.4em]
+-g_k, & g_k^{\mathsf T}p_k^{\mathrm N} \geq 0.
+\end{cases}
+$$
+
+The fallback guarantees $g_k^{\mathsf T}(-g_k) = -\|g_k\|_2^2 < 0$ when $g_k \neq 0$.
+Armijo backtracking then chooses $\gamma_k$ for $\theta_{k+1} = \theta_k + \gamma_k p_k$.
+
+:::
+:::
 
 ## Performance comparison: Good start guess {.performance-slide .performance-grid-slide}
 
@@ -413,7 +467,7 @@ True parameters: $\theta_{\mathrm{true}} = (2.5, 1.4, 0.5, 4.0)^{\mathsf T}$; st
 
 <!-- Regenerate both grids by sourcing A4_performanceplots.R separately. -->
 
-![](Pictures/performance-grid-good.png){width=100% fig-align="center" fig-alt="Six plots for the good starting guess: convergence above fitted curves, with sample sizes 1,000, 10,000, and 100,000 in columns. Fits use the best recorded theta before 0.001, 0.01, and 0.1 seconds, respectively."}
+![](Pictures/performance-grid-good.png){.nostretch .performance-grid-image width=100% fig-align="center" fig-alt="Six plots for the good starting guess: convergence above fitted curves, with sample sizes 1,000, 10,000, and 100,000 in columns. Fits use the best recorded theta before 0.001, 0.01, and 0.1 seconds, respectively."}
 
 ::: {.sgd-parameters}
 Every SGD update is shown. GD/Newton are drawn in front. Fits minimize $|L(\theta) - L(\theta_{\mathrm{ref}})|$ over all updates before the dashed line. Black X: converged.
@@ -423,12 +477,13 @@ SGD: $\gamma_0 = 0.5$, $K = 100$, $a = 0.9$; max epochs $(100, 500, 500)$ for ba
 
 ## Performance comparison: Poor start guess {#performance-comparison-alternative .performance-slide .performance-grid-slide}
 
-True parameters: $\theta_{\mathrm{true}} = (2.5, 1.4, 0.5, 4.0)^{\mathsf T}$; starting guess: $\theta_0 = (1, 4, 0, 2)^{\mathsf T}$.
+True parameters: $\theta_{\mathrm{true}} = (2.5, 1.4, 0.5, 4.0)^{\mathsf T}$; starting guess: $\theta_0 = (1, 4, 0, 2)^{\mathsf T}$. Every update traced:
 
-![](Pictures/performance-grid-poor.png){width=100% fig-align="center" fig-alt="Six plots for the poor starting guess: convergence above fitted curves, with sample sizes 1,000, 10,000, and 100,000 in columns. Fits use the best recorded theta before 0.001, 0.01, and 0.1 seconds, respectively."}
+![](Pictures/performance-grid-poor.png){.nostretch .performance-grid-image width=100% fig-align="center" fig-alt="Six plots for the poor starting guess: convergence above fitted curves, with sample sizes 1,000, 10,000, and 100,000 in columns. Fits use the best recorded theta before 0.001, 0.01, and 0.1 seconds, respectively."}
 
 ::: {.sgd-parameters}
-Every SGD update is shown. GD/Newton are drawn in front. Fits minimize $|L(\theta) - L(\theta_{\mathrm{ref}})|$ over all updates before the dashed line. Black X: converged.
+Curves use $\theta$ that minimize $|L(\theta) - L(\theta_{\mathrm{ref}})|$ before time (dashed line). Black X: converged.
 
 SGD: $\gamma_0 = 0.5$, $K = 100$, $a = 0.9$; max epochs $(100, 500, 500)$ for batches $(1, 50, 250)$. Stops at the epoch cap.
 :::
+
