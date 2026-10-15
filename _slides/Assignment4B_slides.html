@@ -690,6 +690,20 @@ p_k^{\mathrm N}, &amp; g_k^{\mathsf T}p_k^{\mathrm N} &lt; 0, \\[0.4em]
 <p>SGD: <span class="math inline">\(\gamma_0 = 0.5\)</span>, <span class="math inline">\(K = 100\)</span>, <span class="math inline">\(a = 0.9\)</span>; max epochs <span class="math inline">\((100, 500, 500)\)</span> for batches <span class="math inline">\((1, 50, 250)\)</span>. Stops at the epoch cap.</p>
 </div>
 </section>
+<section id="performance-comparison-learning-rates" class="slide level2 performance-slide performance-grid-slide center">
+<h2>Performance comparison: Learning rates</h2>
+<p><span class="math inline">\(N=10{,}000\)</span>, <span class="math inline">\(\sigma=0.25\)</span>; starting guesses are shown above each column.</p>
+<!-- Regenerate this grid by sourcing 4B_updatetracedperformanceplots.R separately. -->
+<div class="quarto-figure quarto-figure-center">
+<figure>
+<p><img data-src="Pictures/performance-grid-learning-rates.png" class="performance-grid-image quarto-figure quarto-figure-center" style="width:100.0%" alt="Learning-rate comparisons from starting guesses (1, 4, 0, 2) and (3, 0, 2, 7). Convergence plots above fitted dose-response curves compare GD, damped Newton, and SGD with initial learning rates 0.5, 2, and 3. Each fitted curve uses its algorithm's best recorded parameters strictly before 5 ms, marked by a dashed line."></p>
+</figure>
+</div>
+<div class="sgd-parameters">
+<p>Curves use <span class="math inline">\(\theta\)</span> that minimize <span class="math inline">\(|L(\theta)-L(\theta_{\mathrm{ref}})|\)</span> strictly before <strong>5 ms</strong> (dashed line). Black X: converged.</p>
+<p>SGD: <span class="math inline">\(\gamma_0\in\{0.5,2,3\}\)</span>, <span class="math inline">\(K=100\)</span>, <span class="math inline">\(a=0.9\)</span>; batch size 100; 500 epochs. Every update traced.</p>
+</div>
+</section>
 <section id="risk-nonconvexity" class="slide level2 convexity-appendix center">
 <h2>Appendix: The risk is not convex</h2>
 <p>For <span class="math inline">\(Y=f(X\mid\theta_{\mathrm{true}})+\varepsilon\)</span>, with <span class="math inline">\(\mathbb{E}[\varepsilon\mid X]=0\)</span> and <span class="math inline">\(\operatorname{Var}(\varepsilon\mid X)=\sigma^2\)</span>,</p>

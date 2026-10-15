@@ -81,7 +81,7 @@ damped_newton <- function(theta_init, fn, gr, hess, tol = 1e-4, max_iter = 100,
 
 sgd <- function(theta_init, x, y, grad,
                 gamma_0 = 0.5, K = 100, a = 0.9,
-                batch_size = 100, max_epochs = 500,
+                batch_size = 50, max_epochs = 500,
                 cb = NULL) {
   theta <- theta_init
   n <- length(y)
@@ -108,7 +108,7 @@ sgd <- function(theta_init, x, y, grad,
 
 sgd_update_traced <- function(theta_init, x, y, grad,
                 gamma_0 = 0.5, K = 100, a = 0.9,
-                batch_size = 100, max_epochs = 500,
+                batch_size = 50, max_epochs = 500,
                 cb = NULL) {
   theta <- theta_init
   n <- length(y)
