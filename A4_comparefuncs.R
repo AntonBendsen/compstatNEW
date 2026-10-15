@@ -1,5 +1,5 @@
 gradient_descent <- function(theta_init, fn, gr, tol = 1e-4, max_iter = 600,
-                             gamma_0 = 1.0, c = 0.2, d = 0.5, cb = NULL) {
+                             gamma_0 = 1.0, c = 0.05, d = 0.5, cb = NULL) {
   theta <- theta_init
   gamma <- gamma_0
   if (!is.null(cb)) cb()
