@@ -29,6 +29,14 @@
   margin: 0 0 16px;
 }
 
+.reveal .slides section.slide.implementation-slide:not(#title-slide) {
+  font-size: 23px;
+}
+
+.reveal .slides section.slide.implementation-slide:not(#title-slide) pre code {
+  font-size: 15.5px;
+}
+
 .reveal .slides section.explanation-slide .math.display {
   display: block;
   margin: 1.2em 0;
@@ -41,8 +49,36 @@
   padding: 12px;
 }
 
+.reveal .slides section.simulation-slide .simulation-explanation {
+  font-size: inherit;
+}
+
+.reveal .slides section.simulation-slide .simulation-explanation ul {
+  margin: 0 0 0.6em 1em;
+}
+
+.reveal .slides section.simulation-slide .simulation-explanation li {
+  margin-bottom: 0.35em;
+}
+
+.reveal .slides section.comparison-slide > .columns {
+  display: flex;
+  gap: 48px;
+}
+
+.reveal .slides section.comparison-slide > .columns > .column {
+  flex-shrink: 1;
+  min-width: 0;
+}
+
 .reveal .slides section.comparison-slide li {
   margin-bottom: 0.7em;
+}
+
+.reveal .slides section.comparison-slide table {
+  width: 100%;
+  font-size: 20px;
+  margin: 0.8em 0;
 }
 
 .reveal .slides section.loss-gradient-slide .column > p {
@@ -138,5 +174,19 @@
   color: #777777;
   font-size: 15px;
   margin-top: 6px;
+}
+
+.reveal .slides section.convexity-appendix table {
+  width: 100%;
+  font-size: 22px;
+}
+
+.reveal .slides section.convexity-appendix p {
+  margin: 0.4em 0;
+}
+
+.reveal .slides section.convexity-appendix .math.display {
+  display: block;
+  margin: 0.6em 0;
 }
 

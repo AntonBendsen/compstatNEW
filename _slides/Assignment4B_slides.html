@@ -221,7 +221,7 @@
 <p><span class="math display">\[
 f(x \mid \alpha,\beta,\gamma,\delta)
 = \gamma + \frac{\delta - \gamma}{1 + \exp\{\beta\log(x) - \alpha\}},
-\qquad \theta := (\alpha,\beta,\gamma,\delta) \in \mathbb{R}^4
+\qquad \theta := (\alpha,\beta,\gamma,\delta)^{\mathsf T} \in \mathbb{R}^4
 \]</span></p>
 <ul>
 <li><strong>Goal:</strong> Use SGD to minimize the squared loss</li>
@@ -233,8 +233,14 @@ L(\theta) = \frac{1}{2N}\sum_{i=1}^{N}
 <p>and estimate the parameter <span class="math inline">\(\theta\)</span>.</p>
 <p>We set <span class="math inline">\(\theta_{\mathrm{true}} = (2.5,1.4,0.5,4.0)^{\mathsf{T}}\)</span> as a benchmark.</p>
 </section>
-<section id="implementation-in-r-simulated-data" class="slide level2 simulation-slide center">
+<section id="implementation-in-r-simulated-data" class="slide level2 simulation-slide implementation-slide center">
 <h2>Implementation in R: Simulated data</h2>
+<div class="simulation-explanation">
+<ul>
+<li>Sample <span class="math inline">\(Z_i\)</span> uniformly, with replacement, from 15 equally spaced points in <span class="math inline">\([1,5]\)</span>; set <span class="math inline">\(x_i=e^{Z_i}\)</span>.</li>
+<li>Generate <span class="math inline">\(y_i=f(x_i\mid\theta_{\mathrm{true}})+\varepsilon_i\)</span>, with <span class="math inline">\(\varepsilon_i\overset{\mathrm{iid}}{\sim}\mathcal{N}(0,\sigma^2)\)</span>.</li>
+</ul>
+</div>
 <div class="columns">
 <div class="column" style="width:45%;">
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb1"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb1-1"><a href="" aria-hidden="true" tabindex="-1"></a>dose_response <span class="ot">&lt;-</span> <span class="cf">function</span>(x, theta) {</span>
@@ -267,7 +273,7 @@ L(\theta) = \frac{1}{2N}\sum_{i=1}^{N}
 </div>
 </div></div>
 </section>
-<section id="implementation-in-r-loss-function-and-gradient" class="slide level2 loss-gradient-slide center">
+<section id="implementation-in-r-loss-function-and-gradient" class="slide level2 loss-gradient-slide implementation-slide center">
 <h2>Implementation in R: Loss function and gradient</h2>
 <div class="columns">
 <div class="column" style="width:52%;">
@@ -324,19 +330,23 @@ p_i
 <span id="cb3-19"><a href="" aria-hidden="true" tabindex="-1"></a>}</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </div></div>
 </section>
-<section id="implementation-in-r-stochastic-gradient-descent" class="slide level2 sgd-slide center">
+<section id="implementation-in-r-stochastic-gradient-descent" class="slide level2 sgd-slide implementation-slide center">
 <h2>Implementation in R: Stochastic Gradient Descent</h2>
 <div class="sgd-intro">
-<p>Learning rate: Robins Monro suggests</p>
+<p>Learning rate motivated by Robbins–Monro</p>
 </div>
 <div class="columns">
 <div class="column" style="width:48%;">
 <p><span class="math display">\[
-\gamma_n = \gamma_0 K / (K n^\alpha)
+\gamma_n = \frac{\gamma_0 K}{K+n^a} \sim \gamma_0 K n^{-a}.
 \]</span></p>
-<p>But <span class="math inline">\(f\)</span> is not even convex on <span class="math inline">\(\mathbb{R}^4\)</span> …</p>
-<p>Checking e.g.&nbsp;strong convexity of <span class="math inline">\(\mathbb{E}[L(\theta)]\)</span>?</p>
-<p>Probably not.</p>
+<p>For <span class="math inline">\(\tfrac12&lt;a\leq1\)</span>,</p>
+<p><span class="math display">\[
+\sum_{n=1}^{\infty}\gamma_n=\infty,
+\qquad
+\sum_{n=1}^{\infty}\gamma_n^2&lt;\infty.
+\]</span></p>
+<p>The theorem requires <strong>strong convexity</strong> of the risk <span class="math inline">\(\mathbb{E}[L(\theta)]\)</span>. Our risk is not globally convex (<a href="#/risk-nonconvexity">see appendix</a>).</p>
 </div><div class="column" style="width:52%;">
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb4"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb4-1"><a href="" aria-hidden="true" tabindex="-1"></a>sgd <span class="ot">&lt;-</span> <span class="cf">function</span>(theta_init, x, y, grad, <span class="at">tol =</span> <span class="fl">1e-4</span>,</span>
 <span id="cb4-2"><a href="" aria-hidden="true" tabindex="-1"></a>                <span class="at">gamma_0 =</span> <span class="fl">0.5</span>, <span class="at">K =</span> <span class="dv">100</span>, <span class="at">a =</span> <span class="fl">0.9</span>,</span>
@@ -367,45 +377,49 @@ p_i
 <span id="cb4-27"><a href="" aria-hidden="true" tabindex="-1"></a>}</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </div></div>
 </section>
-<section id="correctness-check-sgd" class="slide level2 correctness-slide center">
-<h2>Correctness check: SGD</h2>
+<section id="implementation-in-r-correctness-check" class="slide level2 correctness-slide implementation-slide center">
+<h2>Implementation in R: Correctness check</h2>
 <div class="columns">
 <div class="column" style="width:48%;">
-<p>Generate <strong>noiseless data</strong> from <span class="math inline">\(\theta_{\mathrm{true}} = (2.5, 1.4, 0.5, 4)\)</span>, with <span class="math inline">\(N = 10{,}000\)</span>.</p>
-<p>Run the same SGD implementation from three starting guesses and measure the <strong>squared parameter error</strong>:</p>
+<p>Generate <strong>noiseless data</strong> from <span class="math inline">\(\theta_{\mathrm{true}} = (2.5, 1.4, 0.5, 4)^{\mathsf{T}}\)</span>, with <span class="math inline">\(N = 10{,}000\)</span>.</p>
+<p>Compare <strong>squared parameter errors</strong> before and after SGD:</p>
+<p>Before: <span class="math inline">\(\|\theta_{\mathrm{true}}-\theta_0\|_2^2\)</span>; after: <span class="math inline">\(\|\theta_{\mathrm{true}}-\hat\theta\|_2^2\)</span>.</p>
 <table class="caption-top">
 <thead>
 <tr class="header">
 <th style="text-align: left;">Start</th>
 <th style="text-align: left;"><span class="math inline">\(\theta_0\)</span></th>
-<th style="text-align: right;"><span class="math inline">\(\|\theta_{\mathrm{true}}-\hat\theta\|_2^2\)</span></th>
+<th style="text-align: right;">Before</th>
+<th style="text-align: right;">After SGD</th>
 </tr>
 </thead>
 <tbody>
 <tr class="odd">
 <td style="text-align: left;">True</td>
 <td style="text-align: left;"><span class="math inline">\((2.5, 1.4, 0.5, 4)\)</span></td>
-<td style="text-align: right;">0</td>
+<td style="text-align: right;">0.0000</td>
+<td style="text-align: right;">0.0000</td>
 </tr>
 <tr class="even">
-<td style="text-align: left;">Close</td>
-<td style="text-align: left;"><span class="math inline">\((2.3, 1.7, 0.1, 3.2)\)</span></td>
-<td style="text-align: right;">0.0475</td>
+<td style="text-align: left;">Guess 1</td>
+<td style="text-align: left;"><span class="math inline">\((1.9, 1, 2, 2)\)</span></td>
+<td style="text-align: right;">6.7700</td>
+<td style="text-align: right;">0.0208</td>
 </tr>
 <tr class="odd">
-<td style="text-align: left;">Far</td>
-<td style="text-align: left;"><span class="math inline">\((1, 2, 2, 4)\)</span></td>
-<td style="text-align: right;">0.461</td>
+<td style="text-align: left;">Guess 2</td>
+<td style="text-align: left;"><span class="math inline">\((2.3, 1.7, 1, 5)\)</span></td>
+<td style="text-align: right;">1.3800</td>
+<td style="text-align: right;">0.4096</td>
 </tr>
 </tbody>
 </table>
-<p>Starting at the truth leaves it unchanged. The other fits move toward the true parameters and dose-response curve.</p>
 <p>This is a numerical sanity check; finite SGD runs need not recover the parameters exactly.</p>
 </div><div class="column" style="width:52%;">
-<p><img data-src="Pictures/sgd-correctness.png" class="" style="width:100.0%" alt="Dose-response curves for true, close, and far starting guesses. Each panel compares the guessed and SGD-fitted curves with the true curve."></p>
+<p><img data-src="Pictures/sgd-correctness.png" class="" style="width:100.0%" alt="Dose-response curves starting at the truth and each of the two guesses in the table. Each panel compares the guessed and SGD-fitted curves with the true curve."></p>
 </div></div>
 <div class="sgd-parameters">
-<p>SGD: <span class="math inline">\(\gamma_0 = 0.5\)</span>, <span class="math inline">\(K = 100\)</span>, <span class="math inline">\(a = 0.9\)</span>; batch size 100; 100 epochs. Fixed seeds for data and batch shuffling.</p>
+<p>SGD: <span class="math inline">\(\gamma_0 = 0.5\)</span>, <span class="math inline">\(K = 100\)</span>, <span class="math inline">\(a = 0.9\)</span>; batch size 100; 100 epochs. Seed 123 for data and batch shuffling. Results regenerate when rendering.</p>
 </div>
 </section>
 <section id="finding-the-sgd-parameters" class="slide level2 center">
@@ -597,12 +611,44 @@ p_i
 <h2>Optimizer comparison</h2>
 <div class="columns">
 <div class="column" style="width:48%;">
-<ul>
-<li>Compare <strong>SGD</strong>, <strong>gradient descent (GD)</strong>, and <strong>damped Newton</strong> on the same data, using the same initial parameters.</li>
-<li>GD and damped Newton use <strong>Armijo backtracking</strong>, restarting at <span class="math inline">\(\gamma_0 = 1.0\)</span>, with <span class="math inline">\(c = 0.05\)</span> and reduction factor <span class="math inline">\(d = 0.5\)</span>.</li>
-<li>GD has max iterations set to 600, Damped Newton to 100.</li>
-<li>Both stop when <span class="math inline">\(\|\nabla L(\theta)\|_2 \leq 10^{-4}\)</span>, or when reaching max iterations.</li>
-</ul>
+<p>We compare <strong>SGD</strong> with <strong>gradient descent (GD)</strong>, and <strong>damped Newton</strong> with backtracking:</p>
+<table class="caption-top">
+<thead>
+<tr class="header">
+<th style="text-align: left;">Setting</th>
+<th style="text-align: right;">GD</th>
+<th style="text-align: right;">Damped Newton</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td style="text-align: left;">Restart step <span class="math inline">\(\gamma_0\)</span></td>
+<td style="text-align: right;"><span class="math inline">\(1\)</span></td>
+<td style="text-align: right;"><span class="math inline">\(1\)</span></td>
+</tr>
+<tr class="even">
+<td style="text-align: left;">Armijo constant <span class="math inline">\(c\)</span></td>
+<td style="text-align: right;"><span class="math inline">\(0.05\)</span></td>
+<td style="text-align: right;"><span class="math inline">\(0.05\)</span></td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;">Reduction factor <span class="math inline">\(d\)</span></td>
+<td style="text-align: right;"><span class="math inline">\(0.5\)</span></td>
+<td style="text-align: right;"><span class="math inline">\(0.5\)</span></td>
+</tr>
+<tr class="even">
+<td style="text-align: left;">Maximum iterations</td>
+<td style="text-align: right;"><span class="math inline">\(600\)</span></td>
+<td style="text-align: right;"><span class="math inline">\(100\)</span></td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;">Gradient tolerance</td>
+<td style="text-align: right;"><span class="math inline">\(10^{-4}\)</span></td>
+<td style="text-align: right;"><span class="math inline">\(10^{-4}\)</span></td>
+</tr>
+</tbody>
+</table>
+<p>Stop when <span class="math inline">\(\|\nabla L(\theta)\|_2\)</span> reaches the tolerance, or at the iteration cap. The step size restarts at <span class="math inline">\(\gamma_0\)</span> each iteration.</p>
 </div><div class="column" style="width:52%;">
 <p><strong>Newton direction and gradient fallback</strong></p>
 <p>Let <span class="math inline">\(g_k = \nabla L(\theta_k)\)</span> and <span class="math inline">\(H_k = \nabla^2 L(\theta_k)\)</span>. The Newton direction is <span class="math inline">\(p_k^{\mathrm N} = -H_k^{-1}g_k\)</span>.</p>
@@ -619,7 +665,7 @@ p_k^{\mathrm N}, &amp; g_k^{\mathsf T}p_k^{\mathrm N} &lt; 0, \\[0.4em]
 </section>
 <section id="performance-comparison-good-start-guess" class="slide level2 performance-slide performance-grid-slide center">
 <h2>Performance comparison: Good start guess</h2>
-<p>True parameters: <span class="math inline">\(\theta_{\mathrm{true}} = (2.5, 1.4, 0.5, 4.0)^{\mathsf T}\)</span>; starting guess: <span class="math inline">\(\theta_0 = (3, 2, 2, 5)^{\mathsf T}\)</span>.</p>
+<p>True parameters: <span class="math inline">\(\theta_{\mathrm{true}} = (2.5, 1.4, 0.5, 4.0)^{\mathsf T}\)</span>; starting guess: <span class="math inline">\(\theta_0 = (3, 2, 2, 5)^{\mathsf T}\)</span>. Every update traced:</p>
 <!-- Regenerate both grids by sourcing A4_performanceplots.R separately. -->
 <div class="quarto-figure quarto-figure-center">
 <figure>
@@ -627,7 +673,7 @@ p_k^{\mathrm N}, &amp; g_k^{\mathsf T}p_k^{\mathrm N} &lt; 0, \\[0.4em]
 </figure>
 </div>
 <div class="sgd-parameters">
-<p>Every SGD update is shown. GD/Newton are drawn in front. Fits minimize <span class="math inline">\(|L(\theta) - L(\theta_{\mathrm{ref}})|\)</span> over all updates before the dashed line. Black X: converged.</p>
+<p>Curves use <span class="math inline">\(\theta\)</span> that minimize <span class="math inline">\(|L(\theta) - L(\theta_{\mathrm{ref}})|\)</span> before time (dashed line). Black X: converged.</p>
 <p>SGD: <span class="math inline">\(\gamma_0 = 0.5\)</span>, <span class="math inline">\(K = 100\)</span>, <span class="math inline">\(a = 0.9\)</span>; max epochs <span class="math inline">\((100, 500, 500)\)</span> for batches <span class="math inline">\((1, 50, 250)\)</span>. Stops at the epoch cap.</p>
 </div>
 </section>
@@ -643,6 +689,54 @@ p_k^{\mathrm N}, &amp; g_k^{\mathsf T}p_k^{\mathrm N} &lt; 0, \\[0.4em]
 <p>Curves use <span class="math inline">\(\theta\)</span> that minimize <span class="math inline">\(|L(\theta) - L(\theta_{\mathrm{ref}})|\)</span> before time (dashed line). Black X: converged.</p>
 <p>SGD: <span class="math inline">\(\gamma_0 = 0.5\)</span>, <span class="math inline">\(K = 100\)</span>, <span class="math inline">\(a = 0.9\)</span>; max epochs <span class="math inline">\((100, 500, 500)\)</span> for batches <span class="math inline">\((1, 50, 250)\)</span>. Stops at the epoch cap.</p>
 </div>
+</section>
+<section id="risk-nonconvexity" class="slide level2 convexity-appendix center">
+<h2>Appendix: The risk is not convex</h2>
+<p>For <span class="math inline">\(Y=f(X\mid\theta_{\mathrm{true}})+\varepsilon\)</span>, with <span class="math inline">\(\mathbb{E}[\varepsilon\mid X]=0\)</span> and <span class="math inline">\(\operatorname{Var}(\varepsilon\mid X)=\sigma^2\)</span>,</p>
+<p><span class="math display">\[
+R(\theta):=\mathbb{E}[L(\theta)]
+=\frac{\sigma^2}{2}
++\frac12
+\bigl(f(X\mid\theta)-f(X\mid\theta_{\mathrm{true}})\bigr)^2.
+\]</span></p>
+<div class="columns">
+<div class="column" style="width:48%;">
+<p><strong>Example</strong></p>
+<p><span class="math display">\[
+\theta(t)=(t,1.4,0.5,4),\qquad
+r(t)=R(\theta(t))-\frac{\sigma^2}{2}.
+\]</span></p>
+<p>If <span class="math inline">\(R\)</span> were convex, its restriction <span class="math inline">\(r\)</span> would satisfy the <strong>midpoint inequality</strong>.</p>
+</div><div class="column" style="width:52%;">
+<p><strong>Midpoint counterexample</strong></p>
+<table class="caption-top">
+<thead>
+<tr class="header">
+<th style="text-align: right;"><span class="math inline">\(t\)</span></th>
+<th style="text-align: right;"><span class="math inline">\(r(t)\)</span></th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td style="text-align: right;">2.5</td>
+<td style="text-align: right;">0.0000</td>
+</tr>
+<tr class="even">
+<td style="text-align: right;">10.0</td>
+<td style="text-align: right;">3.6557</td>
+</tr>
+<tr class="odd">
+<td style="text-align: right;">17.5</td>
+<td style="text-align: right;">3.7684</td>
+</tr>
+</tbody>
+</table>
+<p>Since <span class="math inline">\(10=(2.5+17.5)/2\)</span>, convexity would require</p>
+<p><span class="math display">\[
+r(10)\leq\frac{r(2.5)+r(17.5)}{2}.
+\]</span></p>
+<p>Instead, <span class="math inline">\(3.6557 &gt; 1.8842\)</span>.</p>
+</div></div>
 
 </section>
     </div>

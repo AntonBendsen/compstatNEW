@@ -27,7 +27,7 @@ format:
 $$
 f(x \mid \alpha,\beta,\gamma,\delta)
 = \gamma + \frac{\delta - \gamma}{1 + \exp\{\beta\log(x) - \alpha\}},
-\qquad \theta := (\alpha,\beta,\gamma,\delta) \in \mathbb{R}^4
+\qquad \theta := (\alpha,\beta,\gamma,\delta)^{\mathsf T} \in \mathbb{R}^4
 $$
 
 - **Goal:** Use SGD to minimize the squared loss
@@ -41,7 +41,12 @@ and estimate the parameter $\theta$.
 
 We set $\theta_{\mathrm{true}} = (2.5,1.4,0.5,4.0)^{\mathsf{T}}$ as a benchmark.
 
-## Implementation in R: Simulated data {.simulation-slide}
+## Implementation in R: Simulated data {.simulation-slide .implementation-slide}
+
+::: {.simulation-explanation}
+- Sample $Z_i$ uniformly, with replacement, from 15 equally spaced points in $[1,5]$; set $x_i=e^{Z_i}$.
+- Generate $y_i=f(x_i\mid\theta_{\mathrm{true}})+\varepsilon_i$, with $\varepsilon_i\overset{\mathrm{iid}}{\sim}\mathcal{N}(0,\sigma^2)$.
+:::
 
 ::: {.columns}
 ::: {.column width="45%"}
@@ -84,7 +89,7 @@ make_slide_data_plot(N = 1000, sigma = 0.25)
 :::
 :::
 
-## Implementation in R: Loss function and gradient {.loss-gradient-slide}
+## Implementation in R: Loss function and gradient {.loss-gradient-slide .implementation-slide}
 
 ::: {.columns}
 ::: {.column width="52%"}
@@ -154,24 +159,28 @@ gradient_func <- function(theta, x, y) {
 :::
 :::
 
-## Implementation in R: Stochastic Gradient Descent {.sgd-slide}
+## Implementation in R: Stochastic Gradient Descent {.sgd-slide .implementation-slide}
 
 ::: {.sgd-intro}
-Learning rate: Robins Monro suggests
+Learning rate motivated by Robbins–Monro
 :::
 
 ::: {.columns}
 ::: {.column width="48%"}
 
 $$
-\gamma_n = \gamma_0 K / (K n^\alpha)
+\gamma_n = \frac{\gamma_0 K}{K+n^a} \sim \gamma_0 K n^{-a}.
 $$
 
-But $f$ is not even convex on $\mathbb{R}^4$ ...
+For $\tfrac12<a\leq1$,
 
-Checking e.g. strong convexity of $\mathbb{E}[L(\theta)]$? 
+$$
+\sum_{n=1}^{\infty}\gamma_n=\infty,
+\qquad
+\sum_{n=1}^{\infty}\gamma_n^2<\infty.
+$$
 
-Probably not.
+The theorem requires **strong convexity** of the risk $\mathbb{E}[L(\theta)]$. Our risk is not globally convex ([see appendix](#risk-nonconvexity)).
 
 :::
 ::: {.column width="52%"}
@@ -211,31 +220,40 @@ sgd <- function(theta_init, x, y, grad, tol = 1e-4,
 
 
 
-## Correctness check: SGD {.correctness-slide}
+```{r}
+#| include: false
+source("4B_correctnesscheck.R")
+```
+
+## Implementation in R: Correctness check {.correctness-slide .implementation-slide}
 
 ::: {.columns}
 ::: {.column width="48%"}
 
-Generate **noiseless data** from $\theta_{\mathrm{true}} = (2.5, 1.4, 0.5, 4)$, with $N = 10{,}000$.
+Generate **noiseless data** from $\theta_{\mathrm{true}} = (2.5, 1.4, 0.5, 4)^{\mathsf{T}}$, with $N = 10{,}000$.
 
-Run the same SGD implementation from three starting guesses and measure the **squared parameter error**:
+Compare **squared parameter errors** before and after SGD:
 
-{{< include Pictures/sgd-correctness-results.md >}}
+Before: $\|\theta_{\mathrm{true}}-\theta_0\|_2^2$; after: $\|\theta_{\mathrm{true}}-\hat\theta\|_2^2$.
 
-Starting at the truth leaves it unchanged. The other fits move toward the true parameters and dose-response curve.
+```{r}
+#| echo: false
+#| results: asis
+cat(readLines("Pictures/sgd-correctness-results.md"), sep = "\n")
+```
 
 This is a numerical sanity check; finite SGD runs need not recover the parameters exactly.
 
 :::
 ::: {.column width="52%"}
 
-![](Pictures/sgd-correctness.png){width=100% .nostretch fig-alt="Dose-response curves for true, close, and far starting guesses. Each panel compares the guessed and SGD-fitted curves with the true curve."}
+![](Pictures/sgd-correctness.png){width=100% .nostretch fig-alt="Dose-response curves starting at the truth and each of the two guesses in the table. Each panel compares the guessed and SGD-fitted curves with the true curve."}
 
 :::
 :::
 
 ::: {.sgd-parameters}
-SGD: $\gamma_0 = 0.5$, $K = 100$, $a = 0.9$; batch size 100; 100 epochs. Fixed seeds for data and batch shuffling.
+SGD: $\gamma_0 = 0.5$, $K = 100$, $a = 0.9$; batch size 100; 100 epochs. Seed 123 for data and batch shuffling. Results regenerate when rendering.
 :::
 
 ## Finding the SGD parameters
@@ -432,10 +450,17 @@ Now, let us instead move from only looking on $(\alpha,\beta)$ to optimize all f
 ::: {.columns}
 ::: {.column width="48%"}
 
-- Compare **SGD**, **gradient descent (GD)**, and **damped Newton** on the same data, using the same initial parameters.
-- GD and damped Newton use **Armijo backtracking**, restarting at $\gamma_0 = 1.0$, with $c = 0.05$ and reduction factor $d = 0.5$.
-- GD has max iterations set to 600, Damped Newton to 100.
-- Both stop when $\|\nabla L(\theta)\|_2 \leq 10^{-4}$, or when reaching max iterations.
+We compare **SGD** with **gradient descent (GD)**, and **damped Newton** with backtracking:
+
+| Setting | GD | Damped Newton |
+|:--|--:|--:|
+| Restart step $\gamma_0$ | $1$ | $1$ |
+| Armijo constant $c$ | $0.05$ | $0.05$ |
+| Reduction factor $d$ | $0.5$ | $0.5$ |
+| Maximum iterations | $600$ | $100$ |
+| Gradient tolerance | $10^{-4}$ | $10^{-4}$ |
+
+Stop when $\|\nabla L(\theta)\|_2$ reaches the tolerance, or at the iteration cap. The step size restarts at $\gamma_0$ each iteration.
 
 :::
 ::: {.column width="52%"}
@@ -463,14 +488,14 @@ Armijo backtracking then chooses $\gamma_k$ for $\theta_{k+1} = \theta_k + \gamm
 
 ## Performance comparison: Good start guess {.performance-slide .performance-grid-slide}
 
-True parameters: $\theta_{\mathrm{true}} = (2.5, 1.4, 0.5, 4.0)^{\mathsf T}$; starting guess: $\theta_0 = (3, 2, 2, 5)^{\mathsf T}$.
+True parameters: $\theta_{\mathrm{true}} = (2.5, 1.4, 0.5, 4.0)^{\mathsf T}$; starting guess: $\theta_0 = (3, 2, 2, 5)^{\mathsf T}$. Every update traced:
 
 <!-- Regenerate both grids by sourcing A4_performanceplots.R separately. -->
 
 ![](Pictures/performance-grid-good.png){.nostretch .performance-grid-image width=100% fig-align="center" fig-alt="Six plots for the good starting guess: convergence above fitted curves, with sample sizes 1,000, 10,000, and 100,000 in columns. Fits use the best recorded theta before 0.001, 0.01, and 0.1 seconds, respectively."}
 
 ::: {.sgd-parameters}
-Every SGD update is shown. GD/Newton are drawn in front. Fits minimize $|L(\theta) - L(\theta_{\mathrm{ref}})|$ over all updates before the dashed line. Black X: converged.
+Curves use $\theta$ that minimize $|L(\theta) - L(\theta_{\mathrm{ref}})|$ before time (dashed line). Black X: converged.
 
 SGD: $\gamma_0 = 0.5$, $K = 100$, $a = 0.9$; max epochs $(100, 500, 500)$ for batches $(1, 50, 250)$. Stops at the epoch cap.
 :::
@@ -485,5 +510,59 @@ True parameters: $\theta_{\mathrm{true}} = (2.5, 1.4, 0.5, 4.0)^{\mathsf T}$; st
 Curves use $\theta$ that minimize $|L(\theta) - L(\theta_{\mathrm{ref}})|$ before time (dashed line). Black X: converged.
 
 SGD: $\gamma_0 = 0.5$, $K = 100$, $a = 0.9$; max epochs $(100, 500, 500)$ for batches $(1, 50, 250)$. Stops at the epoch cap.
+:::
+
+## Appendix: The risk is not convex {#risk-nonconvexity .convexity-appendix}
+
+For $Y=f(X\mid\theta_{\mathrm{true}})+\varepsilon$, with $\mathbb{E}[\varepsilon\mid X]=0$ and $\operatorname{Var}(\varepsilon\mid X)=\sigma^2$,
+
+$$
+R(\theta):=\mathbb{E}[L(\theta)]
+=\frac{\sigma^2}{2}
++\frac12
+\bigl(f(X\mid\theta)-f(X\mid\theta_{\mathrm{true}})\bigr)^2.
+$$
+
+::: {.columns}
+::: {.column width="48%"}
+
+**Example**
+
+$$
+\theta(t)=(t,1.4,0.5,4),\qquad
+r(t)=R(\theta(t))-\frac{\sigma^2}{2}.
+$$
+
+If $R$ were convex, its restriction $r$ would satisfy the **midpoint inequality**.
+
+:::
+::: {.column width="52%"}
+
+**Midpoint counterexample**
+
+```{r}
+#| echo: false
+#| results: asis
+appendix_log_doses <- seq(1, 5, length.out = 15)
+appendix_response <- function(alpha) {
+  0.5 + 3.5 * plogis(alpha - 1.4 * appendix_log_doses)
+}
+appendix_alpha <- c(2.5, 10, 17.5)
+appendix_risk <- vapply(appendix_alpha, function(alpha) {
+  mean((appendix_response(alpha) - appendix_response(2.5))^2) / 2
+}, numeric(1))
+cat(c("| $t$ | $r(t)$ |", "|--:|--:|",
+      sprintf("| %.1f | %.4f |", appendix_alpha, appendix_risk)), sep = "\n")
+```
+
+Since $10=(2.5+17.5)/2$, convexity would require
+
+$$
+r(10)\leq\frac{r(2.5)+r(17.5)}{2}.
+$$
+
+Instead, $`r sprintf("%.4f", appendix_risk[2])` > `r sprintf("%.4f", mean(appendix_risk[c(1, 3)]))`$.
+
+:::
 :::
 
