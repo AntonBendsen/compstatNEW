@@ -486,7 +486,7 @@ Armijo backtracking then chooses $\gamma_k$ for $\theta_{k+1} = \theta_k + \gamm
 :::
 :::
 
-## Performance comparison: Good start guess {.performance-slide .performance-grid-slide}
+## Performance comparison: Varying $N$ and batch size {.performance-slide .performance-grid-slide}
 
 True parameters: $\theta_{\mathrm{true}} = (2.5, 1.4, 0.5, 4.0)^{\mathsf T}$; starting guess: $\theta_0 = (3, 2, 2, 5)^{\mathsf T}$. Every update traced:
 
@@ -500,7 +500,7 @@ Curves use $\theta$ that minimize $|L(\theta) - L(\theta_{\mathrm{ref}})|$ befor
 SGD: $\gamma_0 = 0.5$, $K = 100$, $a = 0.9$; max epochs $(100, 500, 500)$ for batches $(1, 50, 250)$. Stops at the epoch cap.
 :::
 
-## Performance comparison: Poor start guess {#performance-comparison-alternative .performance-slide .performance-grid-slide}
+## Performance comparison: Varying $N$ and batch size {#performance-comparison-alternative .performance-slide .performance-grid-slide}
 
 True parameters: $\theta_{\mathrm{true}} = (2.5, 1.4, 0.5, 4.0)^{\mathsf T}$; starting guess: $\theta_0 = (1, 4, 0, 2)^{\mathsf T}$. Every update traced:
 
@@ -510,6 +510,20 @@ True parameters: $\theta_{\mathrm{true}} = (2.5, 1.4, 0.5, 4.0)^{\mathsf T}$; st
 Curves use $\theta$ that minimize $|L(\theta) - L(\theta_{\mathrm{ref}})|$ before time (dashed line). Black X: converged.
 
 SGD: $\gamma_0 = 0.5$, $K = 100$, $a = 0.9$; max epochs $(100, 500, 500)$ for batches $(1, 50, 250)$. Stops at the epoch cap.
+:::
+
+## Performance comparison: Varying $\gamma_0$ {#performance-comparison-learning-rates .performance-slide .performance-grid-slide}
+
+$\theta_{\mathrm{true}} = (2.5, 1.4, 0.5, 4.0)^{\mathsf T}$, $N=10{,}000$:
+
+<!-- Regenerate this grid by sourcing 4B_updatetracedperformanceplots.R separately. -->
+
+![](Pictures/performance-grid-learning-rates.png){.nostretch .performance-grid-image width=100% fig-align="center" fig-alt="Six learning-rate comparison plots from starting guesses (1, 4, 0, 2), (3, 0, 2, 7), and (8, 2, 1, 2). Convergence plots above fitted dose-response curves compare GD, damped Newton, and SGD with initial learning rates 0.5, 2, and 3. Each fitted curve uses its algorithm's best recorded parameters strictly before 5 ms, marked by a dashed line."}
+
+::: {.sgd-parameters}
+Curves use $\theta$ that minimize $|L(\theta)-L(\theta_{\mathrm{ref}})|$ strictly before **5 ms** (dashed line). Black X: converged.
+
+SGD: $\gamma_0\in\{0.5,2,3\}$, $K=100$, $a=0.9$; batch size 50; 500 epochs. Every update traced.
 :::
 
 ## Appendix: The risk is not convex {#risk-nonconvexity .convexity-appendix}

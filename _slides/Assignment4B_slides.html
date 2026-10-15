@@ -663,8 +663,8 @@ p_k^{\mathrm N}, &amp; g_k^{\mathsf T}p_k^{\mathrm N} &lt; 0, \\[0.4em]
 <p>The fallback guarantees <span class="math inline">\(g_k^{\mathsf T}(-g_k) = -\|g_k\|_2^2 &lt; 0\)</span> when <span class="math inline">\(g_k \neq 0\)</span>. Armijo backtracking then chooses <span class="math inline">\(\gamma_k\)</span> for <span class="math inline">\(\theta_{k+1} = \theta_k + \gamma_k p_k\)</span>.</p>
 </div></div>
 </section>
-<section id="performance-comparison-good-start-guess" class="slide level2 performance-slide performance-grid-slide center">
-<h2>Performance comparison: Good start guess</h2>
+<section id="performance-comparison-varying-n-and-batch-size" class="slide level2 performance-slide performance-grid-slide center">
+<h2>Performance comparison: Varying <span class="math inline">\(N\)</span> and batch size</h2>
 <p>True parameters: <span class="math inline">\(\theta_{\mathrm{true}} = (2.5, 1.4, 0.5, 4.0)^{\mathsf T}\)</span>; starting guess: <span class="math inline">\(\theta_0 = (3, 2, 2, 5)^{\mathsf T}\)</span>. Every update traced:</p>
 <!-- Regenerate both grids by sourcing A4_performanceplots.R separately. -->
 <div class="quarto-figure quarto-figure-center">
@@ -678,7 +678,7 @@ p_k^{\mathrm N}, &amp; g_k^{\mathsf T}p_k^{\mathrm N} &lt; 0, \\[0.4em]
 </div>
 </section>
 <section id="performance-comparison-alternative" class="slide level2 performance-slide performance-grid-slide center">
-<h2>Performance comparison: Poor start guess</h2>
+<h2>Performance comparison: Varying <span class="math inline">\(N\)</span> and batch size</h2>
 <p>True parameters: <span class="math inline">\(\theta_{\mathrm{true}} = (2.5, 1.4, 0.5, 4.0)^{\mathsf T}\)</span>; starting guess: <span class="math inline">\(\theta_0 = (1, 4, 0, 2)^{\mathsf T}\)</span>. Every update traced:</p>
 <div class="quarto-figure quarto-figure-center">
 <figure>
@@ -691,17 +691,17 @@ p_k^{\mathrm N}, &amp; g_k^{\mathsf T}p_k^{\mathrm N} &lt; 0, \\[0.4em]
 </div>
 </section>
 <section id="performance-comparison-learning-rates" class="slide level2 performance-slide performance-grid-slide center">
-<h2>Performance comparison: Learning rates</h2>
-<p><span class="math inline">\(N=10{,}000\)</span>, <span class="math inline">\(\sigma=0.25\)</span>; starting guesses are shown above each column.</p>
+<h2>Performance comparison: Varying <span class="math inline">\(\gamma_0\)</span></h2>
+<p><span class="math inline">\(\theta_{\mathrm{true}} = (2.5, 1.4, 0.5, 4.0)^{\mathsf T}\)</span>, <span class="math inline">\(N=10{,}000\)</span>:</p>
 <!-- Regenerate this grid by sourcing 4B_updatetracedperformanceplots.R separately. -->
 <div class="quarto-figure quarto-figure-center">
 <figure>
-<p><img data-src="Pictures/performance-grid-learning-rates.png" class="performance-grid-image quarto-figure quarto-figure-center" style="width:100.0%" alt="Learning-rate comparisons from starting guesses (1, 4, 0, 2) and (3, 0, 2, 7). Convergence plots above fitted dose-response curves compare GD, damped Newton, and SGD with initial learning rates 0.5, 2, and 3. Each fitted curve uses its algorithm's best recorded parameters strictly before 5 ms, marked by a dashed line."></p>
+<p><img data-src="Pictures/performance-grid-learning-rates.png" class="performance-grid-image quarto-figure quarto-figure-center" style="width:100.0%" alt="Six learning-rate comparison plots from starting guesses (1, 4, 0, 2), (3, 0, 2, 7), and (8, 2, 1, 2). Convergence plots above fitted dose-response curves compare GD, damped Newton, and SGD with initial learning rates 0.5, 2, and 3. Each fitted curve uses its algorithm's best recorded parameters strictly before 5 ms, marked by a dashed line."></p>
 </figure>
 </div>
 <div class="sgd-parameters">
 <p>Curves use <span class="math inline">\(\theta\)</span> that minimize <span class="math inline">\(|L(\theta)-L(\theta_{\mathrm{ref}})|\)</span> strictly before <strong>5 ms</strong> (dashed line). Black X: converged.</p>
-<p>SGD: <span class="math inline">\(\gamma_0\in\{0.5,2,3\}\)</span>, <span class="math inline">\(K=100\)</span>, <span class="math inline">\(a=0.9\)</span>; batch size 100; 500 epochs. Every update traced.</p>
+<p>SGD: <span class="math inline">\(\gamma_0\in\{0.5,2,3\}\)</span>, <span class="math inline">\(K=100\)</span>, <span class="math inline">\(a=0.9\)</span>; batch size 50; 500 epochs. Every update traced.</p>
 </div>
 </section>
 <section id="risk-nonconvexity" class="slide level2 convexity-appendix center">

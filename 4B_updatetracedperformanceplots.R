@@ -34,7 +34,7 @@ comparison_lr1 <- compare_optimizers_ut(
   mepoch_vec = c(500, 500, 500)
 )
 
-#comparison_lr1$convergence_plot
+comparison_lr1$convergence_plot
 
 set.seed(123)
 comparison_lr2 <- compare_optimizers_ut(
@@ -46,9 +46,19 @@ comparison_lr2 <- compare_optimizers_ut(
   mepoch_vec = c(500, 500, 500)
 )
 
-#comparison_lr2$convergence_plot
+comparison_lr2$convergence_plot
 
+set.seed(123)
+comparison_lr3 <- compare_optimizers_ut(
+  c(8, 2, 1, 2),
+  N = 10000,
+  sigma = 0.25,
+  variable = "gamma_0",
+  variable_vec = c(0.5, 2, 3),
+  mepoch_vec = c(500, 500, 500)
+)
 
+comparison_lr3$convergence_plot
 
 # Use each algorithm's best recorded theta strictly before 5 milliseconds.
 comparison_1000_ut_early <- best_curves_before_time(
