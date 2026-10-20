@@ -150,14 +150,16 @@ theta_true <- c(
   delta = 4.0
 )
 
-# N <- 5000
-# sigma <- 0.0
+set.seed(123)
 
-# log_grid <- seq(1, 5, length.out = 15)
-# x <- exp(sample(log_grid, N, replace = TRUE))
+N <- 10000
+sigma <- 0.25
 
-# y <- dose_response(x, theta_true) +
-#   rnorm(N, mean = 0, sd = sigma)
+log_grid <- seq(1, 5, length.out = 15)
+x <- exp(sample(log_grid, N, replace = TRUE))
+
+y <- dose_response(x, theta_true) +
+  rnorm(N, mean = 0, sd = sigma)
 
 loss_func <- function(theta, x, y) {
   residual <- y - dose_response(x, theta)
@@ -225,8 +227,6 @@ fn <- function(theta) loss_func(theta, x, y)
 gr <- function(theta) gradient_func(theta, x, y)
 hess <- function(theta) hess_full(theta, x, y)
 
-library(CSwR)
-library(tidyverse)
 
 make_trace_loss_error <- function(x, y, theta_ref, block_size = 10000L) {
   # All observations at a dose share the same prediction. Within-dose
