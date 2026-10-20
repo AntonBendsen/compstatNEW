@@ -104,9 +104,10 @@ update_traced_performance_grid <- patchwork::wrap_plots(
 # Learning-rate slide: convergence above the best curves strictly before 5 ms.
 comparison_lr1_early <- best_curves_before_time(comparison_lr1, time_limit = 0.005)
 comparison_lr2_early <- best_curves_before_time(comparison_lr2, time_limit = 0.005)
-learning_rate_comparisons <- list(comparison_lr1, comparison_lr2)
-learning_rate_early <- list(comparison_lr1_early, comparison_lr2_early)
-learning_rate_start_labels <- c("Start: (1, 4, 0, 2)", "Start: (3, 0, 2, 7)")
+comparison_lr3_early <- best_curves_before_time(comparison_lr3, time_limit = 0.005)
+learning_rate_comparisons <- list(comparison_lr1, comparison_lr2, comparison_lr3)
+learning_rate_early <- list(comparison_lr1_early, comparison_lr2_early, comparison_lr3_early)
+learning_rate_start_labels <- c("Start: (1, 4, 0, 2)", "Start: (3, 0, 2, 7)", "Start: (8, 2, 1, 2)")
 
 learning_rate_convergence_plots <- lapply(seq_along(learning_rate_comparisons), function(i) {
   learning_rate_comparisons[[i]]$convergence_plot +
@@ -128,7 +129,7 @@ learning_rate_curve_plots <- lapply(seq_along(learning_rate_early), function(i) 
 
 learning_rate_performance_grid <- patchwork::wrap_plots(
   c(learning_rate_convergence_plots, learning_rate_curve_plots),
-  ncol = 2, nrow = 2, byrow = TRUE, guides = "collect"
+  ncol = 3, nrow = 2, byrow = TRUE, guides = "collect"
 ) &
   ggplot2::theme(
     plot.title = ggplot2::element_text(size = 13, hjust = 0.5),
