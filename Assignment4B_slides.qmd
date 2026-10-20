@@ -14,11 +14,12 @@ format:
 
 ## Outline {.outline-slide}
 
-- Log-logistic dose-response model
-- Simulated data and estimation problem
-- Gradient descent, damped Newton, and SGD
-- Convergence and computation time
-- Fitted dose-response curves
+- Explaination of assignemt
+- Implementation in R
+- 2D investigation
+- Full performance comparision
+- Optimisation with C++
+
 
 ## Explanation of assignment {.explanation-slide}
 
@@ -411,37 +412,7 @@ It is clear, that having more batches leads to a more stabile result, but the co
 Having many batches gives one more stabile results, but the convergence takes many more epochs and time. The fastest (in time) to get to the tolerance of $10^{-5}$ seems to be for batch size 50. So having batches seems to help. 
 
 
-## Comparing SGD with GD and Newton
 
-We compare how SGD, SGD with mini-batches, GD and Damped Newton each converge towards the true $\theta$-value. 
-
-
-Comparison of optimization methods
-
-- GD uses the full gradient at every iteration. Its updates are stable, but each iteration becomes more expensive as the sample size increases.
-- SGD uses one observation per update. This makes updates cheap, but the optimization path is noisy.
-- Mini-batch SGD balances these effects: larger batches give smoother updates, while smaller batches make cheaper, noisier updates.
-- Damped Newton can converge quickly near a solution, but each iteration is more computationally expensive and its performance may depend strongly on the starting value.
-
-
-## Comparing SGD with GD and Newton
-
-::: {.columns}
-
-::: {.column width="50%"}
-![Elapsed time ($a=1$, $K=10000$, $\gamma_0=0.05$)](Pictures/comparetime.png){width=100%}
-:::
-
-::: {.column width="50%"}
-![Paths ($a=1$, $K=10000$, $\gamma_0=0.05$) with max epochs of 200 for mini-batches](Pictures/comparepath.png){width=100%}
-:::
-
-:::
-
-From the above plots, it is clear that mini-batches leads to the fastes convergence for a tolerance of $10^{-6}$. Newton and GD are best for when the tolerance is very low. But especially GD is very slow. If a very precise tolerance is not needed, SGD works just fine, with a very fast convergence. 
-
-
-Now, let us instead move from only looking on $(\alpha,\beta)$ to optimize all four parameters at a time.
 
 
 
@@ -485,6 +456,28 @@ Armijo backtracking then chooses $\gamma_k$ for $\theta_{k+1} = \theta_k + \gamm
 
 :::
 :::
+
+## Comparing SGD with GD and Newton
+
+::: {.columns}
+
+::: {.column width="50%"}
+![Elapsed time ($a=1$, $K=10000$, $\gamma_0=0.05$)](Pictures/comparetime.png){width=100%}
+:::
+
+::: {.column width="50%"}
+![Paths ($a=1$, $K=10000$, $\gamma_0=0.05$) with max epochs of 200 for mini-batches](Pictures/comparepath.png){width=100%}
+:::
+
+:::
+
+From the above plots, it is clear that mini-batches leads to the fastes convergence for a tolerance of $10^{-6}$. Newton and GD are best for when the tolerance is very low. But especially GD is very slow. If a very precise tolerance is not needed, SGD works just fine, with a very fast convergence. 
+
+
+**Now, let us instead move from only looking on $(\alpha,\beta)$ to optimize all four parameters at a time.**
+
+
+
 
 ## Performance comparison: Varying $N$ and batch size {.performance-slide .performance-grid-slide}
 
@@ -580,4 +573,3 @@ Instead, $`r sprintf("%.4f", appendix_risk[2])` > `r sprintf("%.4f", mean(append
 :::
 :::
 
-#Test

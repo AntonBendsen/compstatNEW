@@ -6,8 +6,8 @@
 <script src="Assignment4B_slides_files/libs/quarto-html/tippy.umd.min.js"></script>
 <link href="Assignment4B_slides_files/libs/quarto-html/tippy.css" rel="stylesheet">
 <link href="Assignment4B_slides_files/libs/quarto-html/light-border.css" rel="stylesheet">
-<link href="Assignment4B_slides_files/libs/quarto-html/quarto-syntax-highlighting-845c23b38eaddc0f92fda52bfe77a8c8.css" rel="stylesheet" id="quarto-text-highlighting-styles"><meta charset="utf-8">
-  <meta name="generator" content="quarto-1.9.36">
+<link href="Assignment4B_slides_files/libs/quarto-html/quarto-syntax-highlighting-64a204ab8560d761af7679ceaba22944.css" rel="stylesheet" id="quarto-text-highlighting-styles"><meta charset="utf-8">
+  <meta name="generator" content="quarto-1.10.18">
 
   <title>Assignment 4B</title>
   <meta name="apple-mobile-web-app-capable" content="yes">
@@ -19,15 +19,18 @@
     /* Default styles provided by pandoc.
     ** See https://pandoc.org/MANUAL.html#variables-for-html for config info.
     */
-    code{white-space: pre-wrap;}
     span.smallcaps{font-variant: small-caps;}
-    div.columns{display: flex; gap: min(4vw, 1.5em);}
-    div.column{flex: auto; overflow-x: auto;}
+    div.columns{display: flex; gap: 1.5em;}
+    div.column{flex: auto;}
+    @media screen {
+    div.columns{gap: min(4vw, 1.5em);}
+    div.column{overflow-x: auto;}
+    }
     div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
     ul.task-list{list-style: none;}
     ul.task-list li input[type="checkbox"] {
       width: 0.8em;
-      margin: 0 0.8em 0.2em -1em; /* quarto-specific, see https://github.com/quarto-dev/quarto-cli/issues/4556 */
+      margin: 0 0.8em 0.2em -1em; /* quarto-specific, see https://github.com/quarto-dev/quarto-cli/issues/4556 */ 
       vertical-align: middle;
     }
     /* CSS for syntax highlighting */
@@ -128,12 +131,12 @@
     }
     .reveal .footnotes ol {
       counter-reset: ol;
-      list-style-type: none;
+      list-style-type: none; 
       margin-left: 0;
     }
     .reveal .footnotes ol li:before {
       counter-increment: ol;
-      content: counter(ol) ". ";
+      content: counter(ol) ". "; 
     }
     .reveal .footnotes ol li > p:first-child {
       display: inline-block;
@@ -175,19 +178,19 @@
     .reveal .slide > img.r-stretch.quarto-figure-center {
       display: block;
       margin-left: auto;
-      margin-right: auto;
+      margin-right: auto; 
     }
     .reveal .slide > img.stretch.quarto-figure-left,
     .reveal .slide > img.r-stretch.quarto-figure-left  {
       display: block;
       margin-left: 0;
-      margin-right: auto;
+      margin-right: auto; 
     }
     .reveal .slide > img.stretch.quarto-figure-right,
     .reveal .slide > img.r-stretch.quarto-figure-right  {
       display: block;
       margin-left: auto;
-      margin-right: 0;
+      margin-right: 0; 
     }
   </style>
 </head>
@@ -206,11 +209,11 @@
 <section id="outline" class="slide level2 outline-slide center">
 <h2>Outline</h2>
 <ul>
-<li>Log-logistic dose-response model</li>
-<li>Simulated data and estimation problem</li>
-<li>Gradient descent, damped Newton, and SGD</li>
-<li>Convergence and computation time</li>
-<li>Fitted dose-response curves</li>
+<li>Explaination of assignemt</li>
+<li>Implementation in R</li>
+<li>2D investigation</li>
+<li>Full performance comparision</li>
+<li>Optimisation with C++</li>
 </ul>
 </section>
 <section id="explanation-of-assignment" class="slide level2 explanation-slide center">
@@ -575,38 +578,6 @@ p_i
 </div></div>
 <p>Having many batches gives one more stabile results, but the convergence takes many more epochs and time. The fastest (in time) to get to the tolerance of <span class="math inline">\(10^{-5}\)</span> seems to be for batch size 50. So having batches seems to help.</p>
 </section>
-<section id="comparing-sgd-with-gd-and-newton" class="slide level2 center">
-<h2>Comparing SGD with GD and Newton</h2>
-<p>We compare how SGD, SGD with mini-batches, GD and Damped Newton each converge towards the true <span class="math inline">\(\theta\)</span>-value.</p>
-<p>Comparison of optimization methods</p>
-<ul>
-<li>GD uses the full gradient at every iteration. Its updates are stable, but each iteration becomes more expensive as the sample size increases.</li>
-<li>SGD uses one observation per update. This makes updates cheap, but the optimization path is noisy.</li>
-<li>Mini-batch SGD balances these effects: larger batches give smoother updates, while smaller batches make cheaper, noisier updates.</li>
-<li>Damped Newton can converge quickly near a solution, but each iteration is more computationally expensive and its performance may depend strongly on the starting value.</li>
-</ul>
-</section>
-<section id="comparing-sgd-with-gd-and-newton-1" class="slide level2 center">
-<h2>Comparing SGD with GD and Newton</h2>
-<div class="columns">
-<div class="column" style="width:50%;">
-<div class="quarto-figure quarto-figure-center">
-<figure>
-<p><img data-src="Pictures/comparetime.png" style="width:100.0%"></p>
-<figcaption>Elapsed time (<span class="math inline">\(a=1\)</span>, <span class="math inline">\(K=10000\)</span>, <span class="math inline">\(\gamma_0=0.05\)</span>)</figcaption>
-</figure>
-</div>
-</div><div class="column" style="width:50%;">
-<div class="quarto-figure quarto-figure-center">
-<figure>
-<p><img data-src="Pictures/comparepath.png" style="width:100.0%"></p>
-<figcaption>Paths (<span class="math inline">\(a=1\)</span>, <span class="math inline">\(K=10000\)</span>, <span class="math inline">\(\gamma_0=0.05\)</span>) with max epochs of 200 for mini-batches</figcaption>
-</figure>
-</div>
-</div></div>
-<p>From the above plots, it is clear that mini-batches leads to the fastes convergence for a tolerance of <span class="math inline">\(10^{-6}\)</span>. Newton and GD are best for when the tolerance is very low. But especially GD is very slow. If a very precise tolerance is not needed, SGD works just fine, with a very fast convergence.</p>
-<p>Now, let us instead move from only looking on <span class="math inline">\((\alpha,\beta)\)</span> to optimize all four parameters at a time.</p>
-</section>
 <section id="optimizer-comparison" class="slide level2 comparison-slide center">
 <h2>Optimizer comparison</h2>
 <div class="columns">
@@ -662,6 +633,27 @@ p_k^{\mathrm N}, &amp; g_k^{\mathsf T}p_k^{\mathrm N} &lt; 0, \\[0.4em]
 \]</span></p>
 <p>The fallback guarantees <span class="math inline">\(g_k^{\mathsf T}(-g_k) = -\|g_k\|_2^2 &lt; 0\)</span> when <span class="math inline">\(g_k \neq 0\)</span>. Armijo backtracking then chooses <span class="math inline">\(\gamma_k\)</span> for <span class="math inline">\(\theta_{k+1} = \theta_k + \gamma_k p_k\)</span>.</p>
 </div></div>
+</section>
+<section id="comparing-sgd-with-gd-and-newton" class="slide level2 center">
+<h2>Comparing SGD with GD and Newton</h2>
+<div class="columns">
+<div class="column" style="width:50%;">
+<div class="quarto-figure quarto-figure-center">
+<figure>
+<p><img data-src="Pictures/comparetime.png" style="width:100.0%"></p>
+<figcaption>Elapsed time (<span class="math inline">\(a=1\)</span>, <span class="math inline">\(K=10000\)</span>, <span class="math inline">\(\gamma_0=0.05\)</span>)</figcaption>
+</figure>
+</div>
+</div><div class="column" style="width:50%;">
+<div class="quarto-figure quarto-figure-center">
+<figure>
+<p><img data-src="Pictures/comparepath.png" style="width:100.0%"></p>
+<figcaption>Paths (<span class="math inline">\(a=1\)</span>, <span class="math inline">\(K=10000\)</span>, <span class="math inline">\(\gamma_0=0.05\)</span>) with max epochs of 200 for mini-batches</figcaption>
+</figure>
+</div>
+</div></div>
+<p>From the above plots, it is clear that mini-batches leads to the fastes convergence for a tolerance of <span class="math inline">\(10^{-6}\)</span>. Newton and GD are best for when the tolerance is very low. But especially GD is very slow. If a very precise tolerance is not needed, SGD works just fine, with a very fast convergence.</p>
+<p><strong>Now, let us instead move from only looking on <span class="math inline">\((\alpha,\beta)\)</span> to optimize all four parameters at a time.</strong></p>
 </section>
 <section id="performance-comparison-varying-n-and-batch-size" class="slide level2 performance-slide performance-grid-slide center">
 <h2>Performance comparison: Varying <span class="math inline">\(N\)</span> and batch size</h2>
@@ -751,7 +743,6 @@ r(10)\leq\frac{r(2.5)+r(17.5)}{2}.
 \]</span></p>
 <p>Instead, <span class="math inline">\(3.6557 &gt; 1.8842\)</span>.</p>
 </div></div>
-<p>#Test</p>
 
 </section>
     </div>
@@ -769,7 +760,7 @@ r(10)\leq\frac{r(2.5)+r(17.5)}{2}.
   <script src="Assignment4B_slides_files/libs/revealjs/plugin/reveal-menu/menu.js"></script>
   <script src="Assignment4B_slides_files/libs/revealjs/plugin/reveal-menu/quarto-menu.js"></script>
   <script src="Assignment4B_slides_files/libs/revealjs/plugin/quarto-support/support.js"></script>
-
+  
 
   <script src="Assignment4B_slides_files/libs/revealjs/plugin/notes/notes.js"></script>
   <script src="Assignment4B_slides_files/libs/revealjs/plugin/search/search.js"></script>
@@ -791,7 +782,7 @@ r(10)\leq\frac{r(2.5)+r(17.5)}{2}.
 'jumpToSlide': true,
 'menu': {"side":"left","useTextContentForMissingTitles":true,"markers":false,"loadIcons":false,"custom":[{"title":"Tools","icon":"<i class=\"fas fa-gear\"></i>","content":"<ul class=\"slide-menu-items\">\n<li class=\"slide-tool-item active\" data-item=\"0\"><a href=\"#\" onclick=\"RevealMenuToolHandlers.fullscreen(event)\"><kbd>f</kbd> Fullscreen</a></li>\n<li class=\"slide-tool-item\" data-item=\"1\"><a href=\"#\" onclick=\"RevealMenuToolHandlers.speakerMode(event)\"><kbd>s</kbd> Speaker View</a></li>\n<li class=\"slide-tool-item\" data-item=\"2\"><a href=\"#\" onclick=\"RevealMenuToolHandlers.overview(event)\"><kbd>o</kbd> Slide Overview</a></li>\n<li class=\"slide-tool-item\" data-item=\"3\"><a href=\"#\" onclick=\"RevealMenuToolHandlers.togglePdfExport(event)\"><kbd>e</kbd> PDF Export Mode</a></li>\n<li class=\"slide-tool-item\" data-item=\"4\"><a href=\"#\" onclick=\"RevealMenuToolHandlers.toggleScrollView(event)\"><kbd>r</kbd> Scroll View Mode</a></li>\n<li class=\"slide-tool-item\" data-item=\"5\"><a href=\"#\" onclick=\"RevealMenuToolHandlers.keyboardHelp(event)\"><kbd>?</kbd> Keyboard Help</a></li>\n</ul>"}],"openButton":true},
 'smaller': false,
-
+ 
         // Display controls in the bottom right corner
         controls: false,
 
@@ -969,81 +960,43 @@ r(10)\leq\frac{r(2.5)+r(17.5)}{2}.
         ]
       });
     </script>
-
-
+    
     <script>
-
       // htmlwidgets need to know to resize themselves when slides are shown/hidden.
-
       // Fire the "slideenter" event (handled by htmlwidgets.js) when the current
-
       // slide changes (different for each slide format).
-
       (function () {
-
         // dispatch for htmlwidgets
-
         function fireSlideEnter() {
-
           const event = window.document.createEvent("Event");
-
           event.initEvent("slideenter", true, true);
-
           window.document.dispatchEvent(event);
-
         }
-
-
 
         function fireSlideChanged(previousSlide, currentSlide) {
-
           fireSlideEnter();
 
-
-
           // dispatch for shiny
-
           if (window.jQuery) {
-
             if (previousSlide) {
-
               window.jQuery(previousSlide).trigger("hidden");
-
             }
-
             if (currentSlide) {
-
               window.jQuery(currentSlide).trigger("shown");
-
             }
-
           }
-
         }
-
-
 
         // hookup for slidy
-
         if (window.w3c_slidy) {
-
           window.w3c_slidy.add_observer(function (slide_num) {
-
             // slide_num starts at position 1
-
             fireSlideChanged(null, w3c_slidy.slides[slide_num - 1]);
-
           });
-
         }
 
-
-
       })();
-
     </script>
-
-
 
     <script id="quarto-html-after-body" type="application/javascript">
       window.document.addEventListener("DOMContentLoaded", function (event) {
@@ -1053,7 +1006,7 @@ r(10)\leq\frac{r(2.5)+r(17.5)}{2}.
         });
         const isCodeAnnotation = (el) => {
           for (const clz of el.classList) {
-            if (clz.startsWith('code-annotation-')) {
+            if (clz.startsWith('code-annotation-')) {                     
               return true;
             }
           }
@@ -1073,11 +1026,11 @@ r(10)\leq\frac{r(2.5)+r(17.5)}{2}.
             button.setAttribute("data-bs-toggle", "tooltip");
             button.setAttribute("data-bs-placement", "left");
             button.setAttribute("data-bs-title", "Copied!");
-            tooltip = new bootstrap.Tooltip(button,
-              { trigger: "manual",
+            tooltip = new bootstrap.Tooltip(button, 
+              { trigger: "manual", 
                 customClass: "code-copy-button-tooltip",
                 offset: [0, -8]});
-            tooltip.show();
+            tooltip.show();    
           }
           setTimeout(function() {
             if (tooltip) {
@@ -1156,7 +1109,7 @@ r(10)\leq\frac{r(2.5)+r(17.5)}{2}.
           }
             config['offset'] = [0,0];
             config['maxWidth'] = 700;
-          window.tippy(el, config);
+          window.tippy(el, config); 
         }
         const noterefs = window.document.querySelectorAll('a[role="doc-noteref"]');
         for (var i=0; i<noterefs.length; i++) {
@@ -1213,6 +1166,6 @@ r(10)\leq\frac{r(2.5)+r(17.5)}{2}.
         }
       });
       </script>
-
+    
 
 </body></html>
