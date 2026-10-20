@@ -1,2 +1,5 @@
 /.quarto/
 **/*.quarto_ipynb
+
+# Generated Quarto/knitr caches can exceed GitHub's file size limit.
+*_cache/
