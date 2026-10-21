@@ -209,7 +209,7 @@
 <section id="outline" class="slide level2 outline-slide center">
 <h2>Outline</h2>
 <ul>
-<li>Explaination of assignemt</li>
+<li>Explaination of assignment</li>
 <li>Implementation in R</li>
 <li>2D investigation</li>
 <li>Full performance comparision</li>
@@ -531,7 +531,7 @@ p_i
 \sum_{i \in I_n}
 \nabla L_i(\theta_n),
 \]</span></p>
-<p>where <span class="math inline">\(B_t\)</span> is a mini-batch of observations.</p>
+<p>where <span class="math inline">\(I_n\)</span> is a mini-batch of observations.</p>
 <ul>
 <li>Full batch:
 <ul>
@@ -961,42 +961,80 @@ r(10)\leq\frac{r(2.5)+r(17.5)}{2}.
       });
     </script>
     
+
     <script>
+
       // htmlwidgets need to know to resize themselves when slides are shown/hidden.
+
       // Fire the "slideenter" event (handled by htmlwidgets.js) when the current
+
       // slide changes (different for each slide format).
+
       (function () {
+
         // dispatch for htmlwidgets
+
         function fireSlideEnter() {
+
           const event = window.document.createEvent("Event");
+
           event.initEvent("slideenter", true, true);
+
           window.document.dispatchEvent(event);
+
         }
+
+    
 
         function fireSlideChanged(previousSlide, currentSlide) {
+
           fireSlideEnter();
 
+    
+
           // dispatch for shiny
+
           if (window.jQuery) {
+
             if (previousSlide) {
+
               window.jQuery(previousSlide).trigger("hidden");
+
             }
+
             if (currentSlide) {
+
               window.jQuery(currentSlide).trigger("shown");
+
             }
+
           }
+
         }
+
+    
 
         // hookup for slidy
+
         if (window.w3c_slidy) {
+
           window.w3c_slidy.add_observer(function (slide_num) {
+
             // slide_num starts at position 1
+
             fireSlideChanged(null, w3c_slidy.slides[slide_num - 1]);
+
           });
+
         }
 
+    
+
       })();
+
     </script>
+
+    
 
     <script id="quarto-html-after-body" type="application/javascript">
       window.document.addEventListener("DOMContentLoaded", function (event) {

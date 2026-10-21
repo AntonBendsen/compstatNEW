@@ -14,7 +14,7 @@ format:
 
 ## Outline {.outline-slide}
 
-- Explaination of assignemt
+- Explaination of assignment
 - Implementation in R
 - 2D investigation
 - Full performance comparision
@@ -369,7 +369,7 @@ $$
 \nabla L_i(\theta_n),
 $$
 
-where $B_t$ is a mini-batch of observations.
+where $I_n$ is a mini-batch of observations.
 
 - Full batch:
   - uses all data each iteration
