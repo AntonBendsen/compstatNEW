@@ -14,10 +14,10 @@ format:
 
 ## Outline {.outline-slide}
 
-- Explaination of assignment
+- Explanation of assignment
 - Implementation in R
 - 2D investigation
-- Full performance comparision
+- Full performance comparison
 - Optimisation with C++
 
 
@@ -283,23 +283,23 @@ Two problems:
 
 ## Choice of a and K
 
-For intial learning rate $\gamma_0=0.01$
+For initial learning rate $\gamma_0=0.01$
 
 ![Heatmap showing choice of $a$ and $K$ for $\gamma_0=0.01$](Pictures/HMlrn0low.png){width=80%}
 
 ## Choice of a and K
 
-For intial learning rate $\gamma_0=0.5$
+For initial learning rate $\gamma_0=0.5$
 
 ![Heatmap showing choice of $a$ and $K$ for $\gamma_0=0.5$](Pictures/HMlrn0medium.png){width=80%}
 
 ## Choice of a and K
 
-For intial learning rate $\gamma_0=3$
+For initial learning rate $\gamma_0=3$
 
 ![Heatmap showing choice of $a$ and $K$ for $\gamma_0=3$](Pictures/HMlrn0high.png){width=80%}
 
-It seems that setting $a=1$ and $K=10,000$ is somewhat resonable for different initial learning rates.
+It seems that setting $a=1$ and $K=10,000$ is somewhat reasonable for different initial learning rates.
 
 
 ## Choice of initial learning rate $\gamma_0$, MSE
@@ -341,11 +341,11 @@ We try different seeds to see if we randomly ends in local minima and not the gl
 
 ![Path ($a=1$, $K=10000$, $\gamma_0=0.05$) with max epochs of 200](Pictures/seeds.png){width=100%}
 
-It seems that all five seeds converge to the same minima. They all had the same starting point though. If chaning this effets the minima is also to be explored.
+It seems that all five seeds converge to the same minima. They all had the same starting point though. If changing this affects the minima is also to be explored.
 
 ## Different initial guesses
 
-Trying different starting guesses on the parameters $(\alpha,\beta)$ also shows how robust the SDG is:
+Trying different starting guesses on the parameters $(\alpha,\beta)$ also shows how robust the SGD is:
 
 ![Path ($a=1$, $K=10000$, $\gamma_0=0.05$) with max epochs of 200](Pictures/startingpoints.png){width=100%}
 
@@ -388,11 +388,11 @@ This is especially useful for large datasets, where computing the full gradient 
 
 ## Mini-batches paths
 
-We study how the batch sizes effect the path.
+We study how the batch sizes affect the path.
 
 ![Paths ($a=1$, $K=10000$, $\gamma_0=0.05$) with max epochs of 200 for mini-batches](Pictures/MBpath.png){width=100%}
 
-It is clear, that having larger batch sizes leads to a more stabile result, but the convergence becomes more time-consuming. 
+It is clear, that having larger batch sizes leads to a more stable result, but the convergence becomes more time-consuming. 
 
 
 ## Mini-batches convergence
@@ -409,7 +409,7 @@ It is clear, that having larger batch sizes leads to a more stabile result, but 
 
 :::
 
-Having many batches gives one more stabile results, but the convergence takes many more epochs and time. The fastest (in time) to get to the tolerance of $10^{-5}$ seems to be for batch size 50. So having batches seems to help. 
+Having many batches gives one more stable results, but the convergence takes many more epochs and time. The fastest (in time) to get to the tolerance of $10^{-5}$ seems to be for batch size 50. So having batches seems to help. 
 
 
 
@@ -471,7 +471,7 @@ Armijo backtracking then chooses $\gamma_k$ for $\theta_{k+1} = \theta_k + \gamm
 
 :::
 
-From the above plots, it is clear that mini-batches leads to the fastes convergence for a tolerance of $10^{-6}$. Newton and GD are best for when the tolerance is very low. But especially GD is very slow. If a very precise tolerance is not needed, SGD works just fine, with a very fast convergence. 
+From the above plots, it is clear that mini-batches leads to the fastest convergence for a tolerance of $10^{-6}$. Newton and GD are best for when the tolerance is very low. But especially GD is very slow. If a very precise tolerance is not needed, SGD works just fine, with a very fast convergence. 
 
 
 **Now, let us instead move from only looking on $(\alpha,\beta)$ to optimize all four parameters at a time.**
