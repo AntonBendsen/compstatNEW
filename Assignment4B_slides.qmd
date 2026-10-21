@@ -388,11 +388,11 @@ This is especially useful for large datasets, where computing the full gradient 
 
 ## Mini-batches paths
 
-We study how the number of batches effect the path.
+We study how the batch sizes effect the path.
 
 ![Paths ($a=1$, $K=10000$, $\gamma_0=0.05$) with max epochs of 200 for mini-batches](Pictures/MBpath.png){width=100%}
 
-It is clear, that having more batches leads to a more stabile result, but the congergence becomes more time-consuming. 
+It is clear, that having larger batch sizes leads to a more stabile result, but the convergence becomes more time-consuming. 
 
 
 ## Mini-batches convergence
