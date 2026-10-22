@@ -527,15 +527,19 @@ SGD: $\gamma_0\in\{0.5,2,3\}$, $K=100$, $a=0.9$; batch size 50; 500 epochs. Ever
 
 Nested for-loops are quite slow.
 
+## Code in C++
+
+![C++ code](Pictures/cpkode.png){width=80%}
+
 
 ## C++ speed increase
 
 ![Mini batch SGD using C++](Pictures/markus2.png){width=80%}
 
 
-## C++ plot
+## C++ residuals
 
-![SGD using C++](Pictures/markus.png){width=80%}
+![](Pictures/markus.png){width=80%}
 
 
 
