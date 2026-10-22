@@ -519,6 +519,20 @@ Curves use $\theta$ that minimize $|L(\theta)-L(\theta_{\mathrm{ref}})|$ strictl
 SGD: $\gamma_0\in\{0.5,2,3\}$, $K=100$, $a=0.9$; batch size 50; 500 epochs. Every update traced.
 :::
 
+## Profiling
+
+**We look at the performance of the SGD-code:**
+
+![Profiling of SGD](Pictures/prof.jpeg){width=80%}
+
+Nested for-loops are quite slow.
+
+## Optimisation using C++ 
+
+
+
+
+
 ## Appendix: The risk is not convex {#risk-nonconvexity .convexity-appendix}
 
 For $Y=f(X\mid\theta_{\mathrm{true}})+\varepsilon$, with $\mathbb{E}[\varepsilon\mid X]=0$ and $\operatorname{Var}(\varepsilon\mid X)=\sigma^2$,

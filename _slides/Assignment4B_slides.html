@@ -696,6 +696,15 @@ p_k^{\mathrm N}, &amp; g_k^{\mathsf T}p_k^{\mathrm N} &lt; 0, \\[0.4em]
 <p>SGD: <span class="math inline">\(\gamma_0\in\{0.5,2,3\}\)</span>, <span class="math inline">\(K=100\)</span>, <span class="math inline">\(a=0.9\)</span>; batch size 50; 500 epochs. Every update traced.</p>
 </div>
 </section>
+<section id="profiling" class="slide level2 center">
+<h2>Profiling</h2>
+<p><strong>We look at the performance of the SGD-code:</strong></p>
+
+<img data-src="Pictures/prof.jpeg" style="width:80.0%" class="r-stretch quarto-figure-center"><p class="caption">Profiling of SGD</p><p>Nested for-loops are quite slow.</p>
+</section>
+<section id="optimisation-using-c" class="slide level2 center">
+<h2>Optimisation using C++</h2>
+</section>
 <section id="risk-nonconvexity" class="slide level2 convexity-appendix center">
 <h2>Appendix: The risk is not convex</h2>
 <p>For <span class="math inline">\(Y=f(X\mid\theta_{\mathrm{true}})+\varepsilon\)</span>, with <span class="math inline">\(\mathbb{E}[\varepsilon\mid X]=0\)</span> and <span class="math inline">\(\operatorname{Var}(\varepsilon\mid X)=\sigma^2\)</span>,</p>
@@ -961,80 +970,42 @@ r(10)\leq\frac{r(2.5)+r(17.5)}{2}.
       });
     </script>
     
-
     <script>
-
       // htmlwidgets need to know to resize themselves when slides are shown/hidden.
-
       // Fire the "slideenter" event (handled by htmlwidgets.js) when the current
-
       // slide changes (different for each slide format).
-
       (function () {
-
         // dispatch for htmlwidgets
-
         function fireSlideEnter() {
-
           const event = window.document.createEvent("Event");
-
           event.initEvent("slideenter", true, true);
-
           window.document.dispatchEvent(event);
-
         }
-
-    
 
         function fireSlideChanged(previousSlide, currentSlide) {
-
           fireSlideEnter();
 
-    
-
           // dispatch for shiny
-
           if (window.jQuery) {
-
             if (previousSlide) {
-
               window.jQuery(previousSlide).trigger("hidden");
-
             }
-
             if (currentSlide) {
-
               window.jQuery(currentSlide).trigger("shown");
-
             }
-
           }
-
         }
-
-    
 
         // hookup for slidy
-
         if (window.w3c_slidy) {
-
           window.w3c_slidy.add_observer(function (slide_num) {
-
             // slide_num starts at position 1
-
             fireSlideChanged(null, w3c_slidy.slides[slide_num - 1]);
-
           });
-
         }
 
-    
-
       })();
-
     </script>
-
-    
 
     <script id="quarto-html-after-body" type="application/javascript">
       window.document.addEventListener("DOMContentLoaded", function (event) {
