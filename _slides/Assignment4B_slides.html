@@ -704,7 +704,34 @@ p_k^{\mathrm N}, &amp; g_k^{\mathsf T}p_k^{\mathrm N} &lt; 0, \\[0.4em]
 </section>
 <section id="optimisation-using-c" class="slide level2 center">
 <h2>Optimisation using C++</h2>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb5"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb5-1"><a href="" aria-hidden="true" tabindex="-1"></a>Rcpp<span class="sc">::</span>NumericVector <span class="fu">dose_response</span>(</span>
+<span id="cb5-2"><a href="" aria-hidden="true" tabindex="-1"></a>    const Rcpp<span class="sc">::</span>NumericVector<span class="sc">&amp;</span> x,</span>
+<span id="cb5-3"><a href="" aria-hidden="true" tabindex="-1"></a>    const Rcpp<span class="sc">::</span>NumericVector<span class="sc">&amp;</span> theta</span>
+<span id="cb5-4"><a href="" aria-hidden="true" tabindex="-1"></a>) {</span>
+<span id="cb5-5"><a href="" aria-hidden="true" tabindex="-1"></a>  double alpha <span class="ot">=</span> theta[<span class="dv">0</span>];</span>
+<span id="cb5-6"><a href="" aria-hidden="true" tabindex="-1"></a>  double beta  <span class="ot">=</span> theta[<span class="dv">1</span>];</span>
+<span id="cb5-7"><a href="" aria-hidden="true" tabindex="-1"></a>  double gamma <span class="ot">=</span> theta[<span class="dv">2</span>];</span>
+<span id="cb5-8"><a href="" aria-hidden="true" tabindex="-1"></a>  double delta <span class="ot">=</span> theta[<span class="dv">3</span>];</span>
+<span id="cb5-9"><a href="" aria-hidden="true" tabindex="-1"></a>  </span>
+<span id="cb5-10"><a href="" aria-hidden="true" tabindex="-1"></a>  int n <span class="ot">=</span> <span class="fu">x.size</span>();</span>
+<span id="cb5-11"><a href="" aria-hidden="true" tabindex="-1"></a>  Rcpp<span class="sc">::</span>NumericVector <span class="fu">out</span>(n);</span>
+<span id="cb5-12"><a href="" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-13"><a href="" aria-hidden="true" tabindex="-1"></a>  <span class="cf">for</span> (int <span class="at">i =</span> <span class="dv">0</span>; i <span class="sc">&lt;</span> n; <span class="sc">++</span>i) {</span>
+<span id="cb5-14"><a href="" aria-hidden="true" tabindex="-1"></a>    double p <span class="ot">=</span> R<span class="sc">::</span><span class="fu">plogis</span>(</span>
+<span id="cb5-15"><a href="" aria-hidden="true" tabindex="-1"></a>      <span class="sc">-</span>beta <span class="sc">*</span> (std<span class="sc">::</span><span class="fu">log</span>(x[i]) <span class="sc">-</span> alpha),</span>
+<span id="cb5-16"><a href="" aria-hidden="true" tabindex="-1"></a>      <span class="fl">0.0</span>, <span class="fl">1.0</span>, <span class="dv">1</span>, <span class="dv">0</span></span>
+<span id="cb5-17"><a href="" aria-hidden="true" tabindex="-1"></a>    );</span>
+<span id="cb5-18"><a href="" aria-hidden="true" tabindex="-1"></a>  </span>
+<span id="cb5-19"><a href="" aria-hidden="true" tabindex="-1"></a>    out[i] <span class="ot">=</span> gamma <span class="sc">+</span> (delta <span class="sc">-</span> gamma) <span class="sc">*</span> p;</span>
+<span id="cb5-20"><a href="" aria-hidden="true" tabindex="-1"></a>  }</span>
+<span id="cb5-21"><a href="" aria-hidden="true" tabindex="-1"></a>  </span>
+<span id="cb5-22"><a href="" aria-hidden="true" tabindex="-1"></a>  return out;</span>
+<span id="cb5-23"><a href="" aria-hidden="true" tabindex="-1"></a>}</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </section>
+<section id="c-plot" class="slide level2 center">
+<h2>C++ plot</h2>
+
+<img data-src="Pictures/markus.png" style="width:80.0%" class="r-stretch quarto-figure-center"><p class="caption">SGD using C++</p></section>
 <section id="risk-nonconvexity" class="slide level2 convexity-appendix center">
 <h2>Appendix: The risk is not convex</h2>
 <p>For <span class="math inline">\(Y=f(X\mid\theta_{\mathrm{true}})+\varepsilon\)</span>, with <span class="math inline">\(\mathbb{E}[\varepsilon\mid X]=0\)</span> and <span class="math inline">\(\operatorname{Var}(\varepsilon\mid X)=\sigma^2\)</span>,</p>

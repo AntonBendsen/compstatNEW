@@ -529,7 +529,35 @@ Nested for-loops are quite slow.
 
 ## Optimisation using C++ 
 
+```{.r}
+Rcpp::NumericVector dose_response(
+    const Rcpp::NumericVector& x,
+    const Rcpp::NumericVector& theta
+) {
+  double alpha = theta[0];
+  double beta  = theta[1];
+  double gamma = theta[2];
+  double delta = theta[3];
+  
+  int n = x.size();
+  Rcpp::NumericVector out(n);
 
+  for (int i = 0; i < n; ++i) {
+    double p = R::plogis(
+      -beta * (std::log(x[i]) - alpha),
+      0.0, 1.0, 1, 0
+    );
+  
+    out[i] = gamma + (delta - gamma) * p;
+  }
+  
+  return out;
+}
+```
+
+## C++ plot
+
+![SGD using C++](Pictures/markus.png){width=80%}
 
 
 
